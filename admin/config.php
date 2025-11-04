@@ -1,0 +1,553 @@
+<?php
+session_start();
+require_once '../server/db_config.php';
+
+// 检查登录状态
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+    header('Location: login.php');
+    exit;
+}
+
+// 数据库连接
+$config = require '../server/db_config.php';
+$pdo = new PDO(
+    "mysql:host={$config['host']};dbname={$config['database']};charset={$config['charset']}",
+    $config['username'],
+    $config['password'],
+    $config['options']
+);
+
+// 处理保存配置
+if ($_POST) {
+    try {
+        $pdo->beginTransaction();
+        
+        foreach ($_POST['config'] as $key => $value) {
+            // 解析配置键，格式：page_name.config_key
+            $parts = explode('.', $key, 2);
+            if (count($parts) === 2) {
+                $page_name = $parts[0];
+                $config_key = $parts[1];
+                
+                // 更新配置
+                $stmt = $pdo->prepare("UPDATE configs SET config_value = ?, updated_at = CURRENT_TIMESTAMP WHERE page_name = ? AND config_key = ?");
+                $stmt->execute([$value, $page_name, $config_key]);
+            }
+        }
+        
+        $pdo->commit();
+        $success = '配置保存成功！';
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $error = '保存失败：' . $e->getMessage();
+    }
+}
+
+// 获取配置数据
+$configs = [];
+$page_configs = [];
+
+try {
+    $stmt = $pdo->query("SELECT * FROM configs ORDER BY page_name, config_key");
+    $configs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // 按页面分组
+    foreach ($configs as $config) {
+        $page_configs[$config['page_name']][] = $config;
+    }
+} catch (Exception $e) {
+    $error = '获取配置失败：' . $e->getMessage();
+}
+
+// 页面配置定义 - 基于实际数据
+$page_definitions = [
+    'index' => [
+        'name' => '首页配置',
+        'icon' => 'bi-house',
+        'description' => '小程序首页相关配置'
+    ],
+    'zhanli' => [
+        'name' => '战力查询',
+        'icon' => 'bi-search',
+        'description' => '战力查询页面配置'
+    ],
+    'my' => [
+        'name' => '个人中心',
+        'icon' => 'bi-person',
+        'description' => '个人中心页面配置'
+    ],
+    'about' => [
+        'name' => '关于页面',
+        'icon' => 'bi-info-circle',
+        'description' => '关于我们页面配置'
+    ],
+    'settings' => [
+        'name' => '设置页面',
+        'icon' => 'bi-gear',
+        'description' => '设置页面配置'
+    ],
+    'rename' => [
+        'name' => '重命名页面',
+        'icon' => 'bi-pencil',
+        'description' => '重命名相关配置'
+    ],
+    'order' => [
+        'name' => '订单页面',
+        'icon' => 'bi-receipt',
+        'description' => '订单相关配置'
+    ],
+    'tongyong' => [
+        'name' => '通用配置',
+        'icon' => 'bi-tools',
+        'description' => '通用服务配置'
+    ]
+];
+
+// 配置字段定义 - 基于实际数据
+$field_definitions = [
+    'appId' => ['label' => '小程序AppID', 'type' => 'text', 'help' => '微信小程序AppID'],
+    'ddappId' => ['label' => '抖音小程序AppID', 'type' => 'text', 'help' => '抖音小程序AppID'],
+    'path' => ['label' => '页面路径', 'type' => 'text', 'help' => '小程序页面路径'],
+    'ddpath' => ['label' => '抖音页面路径', 'type' => 'text', 'help' => '抖音小程序页面路径'],
+    'qrcodeImage' => ['label' => '二维码图片', 'type' => 'url', 'help' => '二维码图片地址'],
+    'noticeContent' => ['label' => '公告内容', 'type' => 'textarea', 'help' => '页面公告内容'],
+    'workTime' => ['label' => '工作时间', 'type' => 'text', 'help' => '客服工作时间'],
+    'remark' => ['label' => '备注说明', 'type' => 'text', 'help' => '服务备注说明'],
+    'switch' => ['label' => '开关状态', 'type' => 'select', 'options' => ['0' => '关闭', '1' => '开启'], 'help' => '功能开关'],
+    'weburl' => ['label' => '网页链接', 'type' => 'url', 'help' => '外部网页链接'],
+    'weidianId' => ['label' => '微店ID', 'type' => 'text', 'help' => '微店小程序ID'],
+    'weidianUrl' => ['label' => '微店链接', 'type' => 'text', 'help' => '微店页面链接'],
+    'buyPath' => ['label' => '购买页面路径', 'type' => 'text', 'help' => '购买页面路径'],
+    'buyUrl' => ['label' => '购买链接', 'type' => 'url', 'help' => 'H5购买页面链接'],
+    'orderPath' => ['label' => '订单页面路径', 'type' => 'text', 'help' => '订单页面路径'],
+    'orderUrl' => ['label' => '订单链接', 'type' => 'url', 'help' => 'H5订单页面链接'],
+    'videoTutorialUrl' => ['label' => '视频教程链接', 'type' => 'url', 'help' => '视频教程地址'],
+    'imageUrl' => ['label' => '图片地址', 'type' => 'url', 'help' => '图片资源地址'],
+    'image' => ['label' => '图片', 'type' => 'url', 'help' => '图片资源'],
+    'target' => ['label' => '跳转目标', 'type' => 'select', 'options' => ['miniProgram' => '小程序', 'h5' => 'H5页面'], 'help' => '跳转目标类型'],
+    'type' => ['label' => '类型', 'type' => 'select', 'options' => ['link' => '链接', 'ad' => '广告'], 'help' => '内容类型'],
+    'avatar' => ['label' => '头像', 'type' => 'url', 'help' => '用户头像地址'],
+    'nickname' => ['label' => '昵称', 'type' => 'text', 'help' => '用户昵称'],
+    'userId' => ['label' => '用户ID', 'type' => 'text', 'help' => '用户唯一标识'],
+    'publicAccount' => ['label' => '公众号', 'type' => 'text', 'help' => '公众号名称'],
+    'wechat' => ['label' => '微信号', 'type' => 'text', 'help' => '客服微信号'],
+    'templateId' => ['label' => '模板ID', 'type' => 'text', 'help' => '消息模板ID'],
+    'unitId' => ['label' => '广告单元ID', 'type' => 'text', 'help' => '广告单元标识'],
+    'videoAdunit' => ['label' => '视频广告单元', 'type' => 'text', 'help' => '视频广告单元ID'],
+    'rewardedVideoAd' => ['label' => '激励视频广告', 'type' => 'text', 'help' => '激励视频广告单元ID'],
+    'interstitialAdUnitId' => ['label' => '插屏广告单元', 'type' => 'text', 'help' => '插屏广告单元ID'],
+    'bottomAdId' => ['label' => '底部广告ID', 'type' => 'text', 'help' => '底部广告单元ID'],
+    'swiperAdId' => ['label' => '轮播广告ID', 'type' => 'text', 'help' => '轮播广告单元ID'],
+    'dyAdEnabled' => ['label' => '抖音广告开关', 'type' => 'select', 'options' => ['false' => '关闭', 'true' => '开启'], 'help' => '抖音广告是否启用'],
+    'wxAdEnabled' => ['label' => '微信广告开关', 'type' => 'select', 'options' => ['false' => '关闭', 'true' => '开启'], 'help' => '微信广告是否启用'],
+    'gzhewm' => ['label' => '公众号二维码', 'type' => 'url', 'help' => '公众号二维码图片']
+];
+?>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统配置 - 王者荣耀查战力后台管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="../assets/css/admin.css" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+
+        .main-content-wrapper {
+            margin-left: 280px;
+            min-height: 100vh;
+            transition: all 0.3s ease;
+        }
+
+        .main-content {
+            padding: 2rem;
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .page-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .page-header h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .page-header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            position: relative;
+            z-index: 2;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+
+        .config-tabs {
+            background: white;
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .nav-pills .nav-link {
+            border-radius: 15px;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            background: #f8f9fa;
+            color: #495057;
+        }
+
+        .nav-pills .nav-link:hover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .nav-pills .nav-link .badge {
+            background: rgba(255, 255, 255, 0.2) !important;
+            color: #495057;
+        }
+
+        .nav-pills .nav-link.active .badge {
+            background: rgba(255, 255, 255, 0.3) !important;
+            color: white;
+        }
+
+        .content-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .content-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+
+        .form-text {
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+
+        .btn {
+            border-radius: 10px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            border: none;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4);
+        }
+
+        .alert {
+            border-radius: 15px;
+            border: none;
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+        }
+
+        .alert-danger {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+        }
+
+        .config-section {
+            margin-bottom: 2rem;
+        }
+
+        .config-section h5 {
+            color: #495057;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .tab-content {
+            min-height: 400px;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .config-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1rem;
+            border-left: 4px solid #667eea;
+        }
+
+        .config-item .form-label {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .config-item .form-control,
+        .config-item .form-select {
+            font-size: 0.9rem;
+            padding: 0.5rem 0.75rem;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-content-wrapper {
+                margin-left: 0;
+            }
+            
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <?php include 'sidebar.php'; ?>
+
+    <div class="main-content-wrapper">
+        <div class="main-content">
+            <!-- 页面标题 -->
+            <div class="page-header">
+                <h1>
+                    <i class="bi bi-gear me-3"></i>系统配置
+                </h1>
+                <p>管理小程序各页面配置信息，基于现有数据库数据</p>
+            </div>
+
+            <!-- 消息提示 -->
+            <?php if (isset($success)): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <?php echo $success; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
+
+            <?php if (isset($error)): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <?php echo $error; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
+
+            <!-- 配置标签页 -->
+            <div class="config-tabs">
+                <ul class="nav nav-pills" id="configTabs" role="tablist">
+                    <?php foreach ($page_definitions as $page_key => $page_info): ?>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link <?php echo $page_key === 'index' ? 'active' : ''; ?>" 
+                                    id="<?php echo $page_key; ?>-tab" 
+                                    data-bs-toggle="pill" 
+                                    data-bs-target="#<?php echo $page_key; ?>" 
+                                    type="button" 
+                                    role="tab">
+                                <i class="<?php echo $page_info['icon']; ?> me-2"></i>
+                                <?php echo $page_info['name']; ?>
+                                <span class="badge bg-secondary ms-2"><?php echo count($page_configs[$page_key] ?? []); ?></span>
+                            </button>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+
+            <!-- 配置表单 -->
+            <div class="content-card">
+                <form method="POST" id="configForm">
+                    <div class="tab-content" id="configTabsContent">
+                        <?php foreach ($page_definitions as $page_key => $page_info): ?>
+                            <div class="tab-pane fade <?php echo $page_key === 'index' ? 'show active' : ''; ?>" 
+                                 id="<?php echo $page_key; ?>" 
+                                 role="tabpanel">
+                                
+                                <div class="config-section">
+                                    <h5>
+                                        <i class="<?php echo $page_info['icon']; ?> me-2"></i>
+                                        <?php echo $page_info['name']; ?>
+                                    </h5>
+                                    <p class="text-muted mb-4"><?php echo $page_info['description']; ?></p>
+                                    
+                                    <div class="config-grid">
+                                        <?php 
+                                        $page_configs_data = $page_configs[$page_key] ?? [];
+                                        foreach ($page_configs_data as $config_item): 
+                                            $field_def = $field_definitions[$config_item['config_key']] ?? [
+                                                'label' => $config_item['config_key'],
+                                                'type' => 'text',
+                                                'help' => ''
+                                            ];
+                                        ?>
+                                            <div class="config-item">
+                                                <label class="form-label">
+                                                    <?php echo $field_def['label']; ?>
+                                                </label>
+                                                
+                                                <?php if ($field_def['type'] === 'select'): ?>
+                                                    <select class="form-select" 
+                                                            name="config[<?php echo $page_key; ?>.<?php echo $config_item['config_key']; ?>]">
+                                                        <?php foreach ($field_def['options'] as $value => $label): ?>
+                                                            <option value="<?php echo $value; ?>" 
+                                                                    <?php echo $config_item['config_value'] == $value ? 'selected' : ''; ?>>
+                                                                <?php echo $label; ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                <?php elseif ($field_def['type'] === 'textarea'): ?>
+                                                    <textarea class="form-control" 
+                                                              name="config[<?php echo $page_key; ?>.<?php echo $config_item['config_key']; ?>]"
+                                                              rows="3"><?php echo htmlspecialchars($config_item['config_value']); ?></textarea>
+                                                <?php else: ?>
+                                                    <input type="<?php echo $field_def['type']; ?>" 
+                                                           class="form-control" 
+                                                           name="config[<?php echo $page_key; ?>.<?php echo $config_item['config_key']; ?>]"
+                                                           value="<?php echo htmlspecialchars($config_item['config_value']); ?>">
+                                                <?php endif; ?>
+                                                
+                                                <?php if ($field_def['help']): ?>
+                                                    <div class="form-text"><?php echo $field_def['help']; ?></div>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <!-- 提交按钮 -->
+                    <div class="text-end mt-4">
+                        <button type="button" class="btn btn-secondary me-2" onclick="resetForm()">
+                            <i class="bi bi-arrow-clockwise me-2"></i>重置
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>保存配置
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function resetForm() {
+            if (confirm('确定要重置所有配置吗？')) {
+                location.reload();
+            }
+        }
+
+        // 标签页切换动画
+        const tabButtons = document.querySelectorAll('[data-bs-toggle="pill"]');
+        tabButtons.forEach(button => {
+            button.addEventListener('shown.bs.tab', function (event) {
+                const targetPane = document.querySelector(event.target.getAttribute('data-bs-target'));
+                targetPane.style.opacity = '0';
+                targetPane.style.transform = 'translateY(20px)';
+                
+                setTimeout(() => {
+                    targetPane.style.transition = 'all 0.3s ease';
+                    targetPane.style.opacity = '1';
+                    targetPane.style.transform = 'translateY(0)';
+                }, 50);
+            });
+        });
+    </script>
+</body>
+</html>

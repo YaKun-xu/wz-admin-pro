@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 数据库配置文件（包含敏感信息）
+server/db_config.php.backup
+server/config.php.backup
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志文件
+*.log
+
+# 临时文件
+*.tmp
+*.temp
+
+# 上传文件目录（如果包含用户上传内容）
+uploads/
+tmp/
+
+# 环境配置文件
+.env
+.env.local
+
+# 备份文件
+*.backup
+*.bak
+
