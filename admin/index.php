@@ -15,7 +15,11 @@ $stats = [
     'new_users_today' => 0,
     'total_orders' => 0,
     'pending_orders' => 0,
+    'paid_orders' => 0,
+    'processing_orders' => 0,
     'completed_orders' => 0,
+    'cancelled_orders' => 0,
+    'refunded_orders' => 0,
     'total_products' => 0,
     'active_products' => 0,
     'total_tutorials' => 0,
@@ -57,8 +61,20 @@ try {
     $stmt = $pdo->query("SELECT COUNT(*) FROM orders WHERE status = 'pending'");
     $stats['pending_orders'] = $stmt->fetchColumn();
     
+    $stmt = $pdo->query("SELECT COUNT(*) FROM orders WHERE status = 'paid'");
+    $stats['paid_orders'] = $stmt->fetchColumn();
+    
+    $stmt = $pdo->query("SELECT COUNT(*) FROM orders WHERE status = 'processing'");
+    $stats['processing_orders'] = $stmt->fetchColumn();
+    
     $stmt = $pdo->query("SELECT COUNT(*) FROM orders WHERE status = 'completed'");
     $stats['completed_orders'] = $stmt->fetchColumn();
+    
+    $stmt = $pdo->query("SELECT COUNT(*) FROM orders WHERE status = 'cancelled'");
+    $stats['cancelled_orders'] = $stmt->fetchColumn();
+    
+    $stmt = $pdo->query("SELECT COUNT(*) FROM orders WHERE status = 'refunded'");
+    $stats['refunded_orders'] = $stmt->fetchColumn();
     
     // 获取商品统计
     $stmt = $pdo->query("SELECT COUNT(*) FROM shop_products");
@@ -74,14 +90,14 @@ try {
     $stmt = $pdo->query("SELECT COUNT(*) FROM shop_faqs");
     $stats['total_faqs'] = $stmt->fetchColumn();
     
-    // 获取收入统计
-    $stmt = $pdo->query("SELECT SUM(total_amount) FROM orders WHERE status = 'completed'");
+    // 获取收入统计（包括所有已支付订单：paid、processing、completed）
+    $stmt = $pdo->query("SELECT SUM(total_amount) FROM orders WHERE status IN ('paid', 'processing', 'completed')");
     $stats['total_revenue'] = $stmt->fetchColumn() ?: 0;
     
-    $stmt = $pdo->query("SELECT SUM(total_amount) FROM orders WHERE status = 'completed' AND DATE(created_at) = CURDATE()");
+    $stmt = $pdo->query("SELECT SUM(total_amount) FROM orders WHERE status IN ('paid', 'processing', 'completed') AND DATE(created_at) = CURDATE()");
     $stats['today_revenue'] = $stmt->fetchColumn() ?: 0;
     
-    $stmt = $pdo->query("SELECT SUM(total_amount) FROM orders WHERE status = 'completed' AND MONTH(created_at) = MONTH(NOW()) AND YEAR(created_at) = YEAR(NOW())");
+    $stmt = $pdo->query("SELECT SUM(total_amount) FROM orders WHERE status IN ('paid', 'processing', 'completed') AND MONTH(created_at) = MONTH(NOW()) AND YEAR(created_at) = YEAR(NOW())");
     $stats['monthly_revenue'] = $stmt->fetchColumn() ?: 0;
     
     // 获取用户增长趋势（最近7天）
@@ -98,7 +114,7 @@ try {
     $stmt = $pdo->query("
         SELECT DATE(created_at) as date, SUM(total_amount) as revenue 
         FROM orders 
-        WHERE status = 'completed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) 
+        WHERE status IN ('paid', 'processing', 'completed') AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) 
         GROUP BY DATE(created_at) 
         ORDER BY date
     ");
@@ -116,7 +132,7 @@ try {
     
     // 获取最近订单
     $stmt = $pdo->query("
-        SELECT o.*, p.title as product_name, u.nickname 
+        SELECT o.*, p.title as product_name, u.nickname as username 
         FROM orders o 
         LEFT JOIN shop_products p ON o.product_id = p.id 
         LEFT JOIN users u ON o.user_id = u.id 
@@ -426,7 +442,9 @@ try {
                                 <i class="bi bi-graph-up me-2"></i>用户增长趋势
                             </div>
                             <?php if (!empty($user_growth)): ?>
-                                <canvas id="userGrowthChart" height="100"></canvas>
+                                <div style="height: 200px; max-height: 200px;">
+                                    <canvas id="userGrowthChart" style="max-height: 200px;"></canvas>
+                                </div>
                             <?php else: ?>
                                 <div class="empty-state">
                                     <i class="bi bi-graph-up"></i>
@@ -441,7 +459,9 @@ try {
                                 <i class="bi bi-pie-chart me-2"></i>订单状态分布
                             </div>
                             <?php if ($stats['total_orders'] > 0): ?>
-                                <canvas id="orderStatusChart" height="200"></canvas>
+                                <div style="height: 200px; max-height: 200px;">
+                                    <canvas id="orderStatusChart" style="max-height: 200px;"></canvas>
+                                </div>
                             <?php else: ?>
                                 <div class="empty-state">
                                     <i class="bi bi-pie-chart"></i>
@@ -460,7 +480,9 @@ try {
                                 <i class="bi bi-currency-dollar me-2"></i>收入趋势
                             </div>
                             <?php if (!empty($revenue_trend)): ?>
-                                <canvas id="revenueChart" height="100"></canvas>
+                                <div style="height: 200px; max-height: 200px;">
+                                    <canvas id="revenueChart" style="max-height: 200px;"></canvas>
+                                </div>
                             <?php else: ?>
                                 <div class="empty-state">
                                     <i class="bi bi-currency-dollar"></i>
@@ -520,8 +542,8 @@ try {
                                             <?php foreach ($recent_orders as $order): ?>
                                             <tr>
                                                 <td>#<?php echo $order['id']; ?></td>
-                                                <td><?php echo htmlspecialchars($order['product_name']); ?></td>
-                                                <td><?php echo htmlspecialchars($order['username']); ?></td>
+                                                <td><?php echo htmlspecialchars($order['product_name'] ?? ''); ?></td>
+                                                <td><?php echo htmlspecialchars($order['username'] ?? '未知用户'); ?></td>
                                                 <td>¥<?php echo number_format($order['total_amount'], 2); ?></td>
                                                 <td>
                                                     <span class="badge <?php echo $order['status'] === 'completed' ? 'badge-success' : ($order['status'] === 'pending' ? 'badge-warning' : 'badge-danger'); ?>">
@@ -553,13 +575,18 @@ try {
         // 用户增长趋势图表
         <?php if (!empty($user_growth)): ?>
         const userGrowthCtx = document.getElementById('userGrowthChart').getContext('2d');
+        const userGrowthData = <?php echo json_encode(array_column($user_growth, 'users')); ?>;
+        const maxUsers = Math.max(...userGrowthData, 0);
+        // 计算Y轴最大值：向上取整到10的倍数，只留最小空间
+        const yAxisMax = Math.ceil((maxUsers + 1) / 10) * 10;
+        
         new Chart(userGrowthCtx, {
             type: 'line',
             data: {
                 labels: <?php echo json_encode(array_column($user_growth, 'date')); ?>,
                 datasets: [{
                     label: '新增用户',
-                    data: <?php echo json_encode(array_column($user_growth, 'users')); ?>,
+                    data: userGrowthData,
                     borderColor: '#667eea',
                     backgroundColor: 'rgba(102, 126, 234, 0.1)',
                     tension: 0.4,
@@ -569,6 +596,12 @@ try {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        top: 10,
+                        bottom: 10
+                    }
+                },
                 plugins: {
                     legend: {
                         display: false
@@ -576,7 +609,14 @@ try {
                 },
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        max: yAxisMax,
+                        ticks: {
+                            stepSize: 10,
+                            callback: function(value) {
+                                return value;
+                            }
+                        }
                     }
                 }
             }
@@ -589,10 +629,24 @@ try {
         new Chart(orderStatusCtx, {
             type: 'doughnut',
             data: {
-                labels: ['已完成', '待处理', '已取消'],
+                labels: ['待支付', '已支付', '处理中', '已完成', '已取消', '已退款'],
                 datasets: [{
-                    data: [<?php echo $stats['completed_orders']; ?>, <?php echo $stats['pending_orders']; ?>, <?php echo $stats['total_orders'] - $stats['completed_orders'] - $stats['pending_orders']; ?>],
-                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444']
+                    data: [
+                        <?php echo $stats['pending_orders']; ?>,
+                        <?php echo $stats['paid_orders']; ?>,
+                        <?php echo $stats['processing_orders']; ?>,
+                        <?php echo $stats['completed_orders']; ?>,
+                        <?php echo $stats['cancelled_orders']; ?>,
+                        <?php echo $stats['refunded_orders']; ?>
+                    ],
+                    backgroundColor: [
+                        '#94a3b8', // 待支付 - 灰色
+                        '#3b82f6', // 已支付 - 蓝色
+                        '#f59e0b', // 处理中 - 橙色
+                        '#10b981', // 已完成 - 绿色
+                        '#ef4444', // 已取消 - 红色
+                        '#8b5cf6'  // 已退款 - 紫色
+                    ]
                 }]
             },
             options: {
