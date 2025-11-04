@@ -298,49 +298,16 @@ try {
                 </div>
             <?php endif; ?>
 
-            <!-- 添加FAQ表单 -->
-            <div class="content-card">
-                <h3 class="mb-4">
-                    <i class="bi bi-plus-circle me-2"></i>添加FAQ
-                </h3>
-                <form method="POST">
-                    <input type="hidden" name="action" value="add">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">关联商品</label>
-                            <select class="form-select" name="product_id">
-                                <option value="">通用FAQ</option>
-                                <?php foreach ($products as $product): ?>
-                                    <option value="<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['title']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-12 mb-3">
-                            <label class="form-label">问题</label>
-                            <input type="text" class="form-control" name="question" required>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-12 mb-3">
-                            <label class="form-label">答案</label>
-                            <textarea class="form-control form-textarea" name="answer" rows="4" required></textarea>
-                        </div>
-                    </div>
-                    <div class="text-end">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-plus-lg me-2"></i>添加FAQ
-                        </button>
-                    </div>
-                </form>
-            </div>
-
             <!-- FAQ列表 -->
             <div class="content-card">
-                <h3 class="mb-4">
-                    <i class="bi bi-list-ul me-2"></i>FAQ列表
-                </h3>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="mb-0">
+                        <i class="bi bi-list-ul me-2"></i>FAQ列表
+                    </h3>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+                        <i class="bi bi-plus-circle me-2"></i>添加FAQ
+                    </button>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -382,39 +349,107 @@ try {
         </div>
     </div>
 
+    <!-- 添加FAQ模态框 -->
+    <div class="modal fade" id="addModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px 20px 0 0; border: none; padding: 1.5rem 2rem;">
+                    <h5 class="modal-title text-white" style="font-size: 1.5rem; font-weight: 700;">
+                        <i class="bi bi-plus-circle me-2"></i>添加FAQ
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" id="addForm">
+                    <div class="modal-body" style="padding: 2rem;">
+                        <input type="hidden" name="action" value="add">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-box-seam me-1"></i>关联商品
+                            </label>
+                            <select class="form-select" name="product_id" id="add_product_id">
+                                <option value="">通用FAQ</option>
+                                <?php foreach ($products as $product): ?>
+                                    <option value="<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['title']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>选择关联商品或留空作为通用FAQ
+                            </small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-question-circle me-1"></i>问题 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" name="question" id="add_question" required placeholder="请输入问题">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-chat-dots me-1"></i>答案 <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control" name="answer" id="add_answer" rows="6" required placeholder="请输入答案"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>取消
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>添加FAQ
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- 编辑FAQ模态框 -->
     <div class="modal fade" id="editModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">编辑FAQ</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px 20px 0 0; border: none; padding: 1.5rem 2rem;">
+                    <h5 class="modal-title text-white" style="font-size: 1.5rem; font-weight: 700;">
+                        <i class="bi bi-pencil-square me-2"></i>编辑FAQ
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form method="POST" id="editForm">
-                    <div class="modal-body">
+                    <div class="modal-body" style="padding: 2rem;">
                         <input type="hidden" name="action" value="edit">
                         <input type="hidden" name="id" id="edit_id">
                         <div class="mb-3">
-                            <label class="form-label">关联商品</label>
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-box-seam me-1"></i>关联商品
+                            </label>
                             <select class="form-select" name="product_id" id="edit_product_id">
                                 <option value="">通用FAQ</option>
                                 <?php foreach ($products as $product): ?>
                                     <option value="<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['title']); ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>选择关联商品或留空作为通用FAQ
+                            </small>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">问题</label>
-                            <input type="text" class="form-control" name="question" id="edit_question" required>
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-question-circle me-1"></i>问题 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" name="question" id="edit_question" required placeholder="请输入问题">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">答案</label>
-                            <textarea class="form-control form-textarea" name="answer" id="edit_answer" rows="4" required></textarea>
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-chat-dots me-1"></i>答案 <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control" name="answer" id="edit_answer" rows="6" required placeholder="请输入答案"></textarea>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="submit" class="btn btn-primary">保存修改</button>
+                    <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>取消
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>保存修改
+                        </button>
                     </div>
                 </form>
             </div>
@@ -458,6 +493,14 @@ try {
         function deleteFaq(id) {
             document.getElementById('delete_id').value = id;
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        // 重置添加表单
+        const addModal = document.getElementById('addModal');
+        if (addModal) {
+            addModal.addEventListener('hidden.bs.modal', function() {
+                document.getElementById('addForm').reset();
+            });
         }
 
         // 自动隐藏提示消息

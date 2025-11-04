@@ -26,9 +26,9 @@ if ($_POST) {
     
     if ($action === 'add') {
         $product_id = intval($_POST['product_id'] ?? 0);
-        $card_key = trim($_POST['card_key'] ?? '');
+        $card_keys_text = trim($_POST['card_keys'] ?? '');
         
-        if (empty($card_key) || $product_id <= 0) {
+        if (empty($card_keys_text) || $product_id <= 0) {
             $message = '商品ID和卡密内容不能为空';
             $messageType = 'danger';
         } else {
@@ -45,30 +45,81 @@ if ($_POST) {
                     $message = '只能为卡密商品添加卡密';
                     $messageType = 'danger';
                 } else {
-                    // 检查卡密是否已存在
-                    $stmt = $pdo->prepare("SELECT id FROM shop_card_keys WHERE card_key = ?");
-                    $stmt->execute([$card_key]);
-                    $existing = $stmt->fetch();
+                    // 解析多行卡密，每行一个
+                    $card_keys = array_filter(array_map('trim', explode("\n", $card_keys_text)), function($key) {
+                        return !empty($key);
+                    });
                     
-                    if ($existing) {
-                        $message = '该卡密已存在，请使用其他卡密';
+                    if (empty($card_keys)) {
+                        $message = '请输入至少一个卡密';
                         $messageType = 'danger';
                     } else {
-                        $stmt = $pdo->prepare("INSERT INTO shop_card_keys (product_id, card_key, status) VALUES (?, ?, 0)");
-                        $stmt->execute([$product_id, $card_key]);
-                        $message = '卡密添加成功';
-                        $messageType = 'success';
+                        $pdo->beginTransaction();
+                        
+                        $success_count = 0;
+                        $duplicate_count = 0;
+                        $errors = [];
+                        
+                        // 批量插入卡密
+                        $insert_stmt = $pdo->prepare("INSERT INTO shop_card_keys (product_id, card_key, status) VALUES (?, ?, 0)");
+                        $check_stmt = $pdo->prepare("SELECT id FROM shop_card_keys WHERE card_key = ?");
+                        
+                        foreach ($card_keys as $card_key) {
+                            $card_key = trim($card_key);
+                            if (empty($card_key)) continue;
+                            
+                            // 检查是否已存在
+                            $check_stmt->execute([$card_key]);
+                            $existing = $check_stmt->fetch();
+                            
+                            if ($existing) {
+                                $duplicate_count++;
+                            } else {
+                                try {
+                                    $insert_stmt->execute([$product_id, $card_key]);
+                                    $success_count++;
+                                } catch (PDOException $e) {
+                                    if ($e->getCode() == 23000) {
+                                        $duplicate_count++;
+                                    } else {
+                                        $errors[] = $card_key . ': ' . $e->getMessage();
+                                    }
+                                }
+                            }
+                        }
+                        
+                        $pdo->commit();
+                        
+                        // 生成结果消息
+                        $message_parts = [];
+                        if ($success_count > 0) {
+                            $message_parts[] = "成功添加 {$success_count} 个卡密";
+                        }
+                        if ($duplicate_count > 0) {
+                            $message_parts[] = "跳过 {$duplicate_count} 个重复卡密";
+                        }
+                        if (!empty($errors)) {
+                            $message_parts[] = "失败 " . count($errors) . " 个卡密";
+                        }
+                        
+                        $message = implode('，', $message_parts);
+                        $messageType = $success_count > 0 ? 'success' : 'danger';
                     }
                 }
             } catch (PDOException $e) {
-                // 捕获唯一约束冲突错误
+                if (isset($pdo) && $pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
                 if ($e->getCode() == 23000) {
-                    $message = '该卡密已存在，请使用其他卡密';
+                    $message = '部分卡密已存在，请检查后重试';
                 } else {
                     $message = '添加失败：' . $e->getMessage();
                 }
                 $messageType = 'danger';
             } catch (Exception $e) {
+                if (isset($pdo) && $pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
                 $message = '添加失败：' . $e->getMessage();
                 $messageType = 'danger';
             }
@@ -345,46 +396,16 @@ try {
                 </div>
             <?php endif; ?>
 
-            <!-- 添加卡密表单 -->
-            <div class="content-card">
-                <h3 class="mb-4">
-                    <i class="bi bi-plus-circle me-2"></i>添加卡密
-                </h3>
-                <form method="POST">
-                    <input type="hidden" name="action" value="add">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">选择商品</label>
-                            <select class="form-select" name="product_id" required>
-                                <option value="">请选择卡密商品</option>
-                                <?php if (empty($products)): ?>
-                                    <option value="" disabled>暂无卡密商品，请先在商品管理中创建卡密商品</option>
-                                <?php else: ?>
-                                    <?php foreach ($products as $product): ?>
-                                        <option value="<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['title']); ?></option>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </select>
-                            <small class="form-text text-muted">只显示卡密商品（product_type = 2）</small>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">卡密内容</label>
-                            <input type="text" class="form-control" name="card_key" required>
-                        </div>
-                    </div>
-                    <div class="text-end">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-plus-lg me-2"></i>添加卡密
-                        </button>
-                    </div>
-                </form>
-            </div>
-
             <!-- 卡密列表 -->
             <div class="content-card">
-                <h3 class="mb-4">
-                    <i class="bi bi-list-ul me-2"></i>卡密列表
-                </h3>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="mb-0">
+                        <i class="bi bi-list-ul me-2"></i>卡密列表
+                    </h3>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+                        <i class="bi bi-plus-circle me-2"></i>添加卡密
+                    </button>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -426,26 +447,93 @@ try {
         </div>
     </div>
 
+    <!-- 添加卡密模态框 -->
+    <div class="modal fade" id="addModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px 20px 0 0; border: none; padding: 1.5rem 2rem;">
+                    <h5 class="modal-title text-white" style="font-size: 1.5rem; font-weight: 700;">
+                        <i class="bi bi-plus-circle me-2"></i>批量添加卡密
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" id="addForm">
+                    <div class="modal-body" style="padding: 2rem;">
+                        <input type="hidden" name="action" value="add">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-box-seam me-1"></i>选择商品 <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" name="product_id" id="add_product_id" required>
+                                <option value="">请选择卡密商品</option>
+                                <?php if (empty($products)): ?>
+                                    <option value="" disabled>暂无卡密商品，请先在商品管理中创建卡密商品</option>
+                                <?php else: ?>
+                                    <?php foreach ($products as $product): ?>
+                                        <option value="<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['title']); ?></option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>只显示卡密商品（product_type = 2）
+                            </small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-key me-1"></i>卡密内容 <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control" name="card_keys" id="add_card_keys" rows="10" required placeholder="请输入卡密，每行一个&#10;例如：&#10;card_key_001&#10;card_key_002&#10;card_key_003" style="font-family: monospace; font-size: 0.9rem;"></textarea>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>每行输入一个卡密，系统会自动识别并批量添加。重复的卡密将被自动跳过。
+                            </small>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-lightbulb me-1"></i>提示：可以直接从Excel或其他文件复制多行内容粘贴到此处
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>取消
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>批量添加
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- 编辑卡密模态框 -->
     <div class="modal fade" id="editModal" tabindex="-1">
         <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">编辑卡密</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px 20px 0 0; border: none; padding: 1.5rem 2rem;">
+                    <h5 class="modal-title text-white" style="font-size: 1.5rem; font-weight: 700;">
+                        <i class="bi bi-pencil-square me-2"></i>编辑卡密
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form method="POST" id="editForm">
-                    <div class="modal-body">
+                    <div class="modal-body" style="padding: 2rem;">
                         <input type="hidden" name="action" value="edit">
                         <input type="hidden" name="id" id="edit_id">
                         <div class="mb-3">
-                            <label class="form-label">卡密内容</label>
-                            <input type="text" class="form-control" name="card_key" id="edit_card_key" required>
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-key me-1"></i>卡密内容 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" name="card_key" id="edit_card_key" required placeholder="请输入卡密内容">
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="submit" class="btn btn-primary">保存修改</button>
+                    <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>取消
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>保存修改
+                        </button>
                     </div>
                 </form>
             </div>
@@ -487,6 +575,14 @@ try {
         function deleteCardKey(id) {
             document.getElementById('delete_id').value = id;
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        // 重置添加表单
+        const addModal = document.getElementById('addModal');
+        if (addModal) {
+            addModal.addEventListener('hidden.bs.modal', function() {
+                document.getElementById('addForm').reset();
+            });
         }
 
         // 自动隐藏提示消息

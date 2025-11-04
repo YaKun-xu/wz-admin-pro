@@ -521,42 +521,62 @@ $products = $products_stmt->fetchAll(PDO::FETCH_ASSOC);
     <!-- 添加教程模态框 -->
     <div class="modal fade" id="addTutorialModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">添加教程</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px 20px 0 0; border: none; padding: 1.5rem 2rem;">
+                    <h5 class="modal-title text-white" style="font-size: 1.5rem; font-weight: 700;">
+                        <i class="bi bi-plus-circle me-2"></i>添加教程
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form method="POST">
-                    <div class="modal-body">
+                <form method="POST" id="addTutorialForm">
+                    <div class="modal-body" style="padding: 2rem;">
                         <input type="hidden" name="action" value="add">
                         <div class="mb-3">
-                            <label for="add_product_id" class="form-label">关联商品</label>
+                            <label for="add_product_id" class="form-label fw-bold">
+                                <i class="bi bi-box-seam me-1"></i>关联商品
+                            </label>
                             <select class="form-select" id="add_product_id" name="product_id">
                                 <option value="">通用教程</option>
                                 <?php foreach ($products as $product): ?>
                                     <option value="<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['title']); ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>选择关联商品或留空作为通用教程
+                            </small>
                         </div>
                         <div class="mb-3">
-                            <label for="add_title" class="form-label">标题</label>
-                            <input type="text" class="form-control" id="add_title" name="title" required>
+                            <label for="add_title" class="form-label fw-bold">
+                                <i class="bi bi-bookmark me-1"></i>标题 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="add_title" name="title" required placeholder="请输入教程标题">
                         </div>
                         <div class="mb-3">
-                            <label for="add_image_url" class="form-label">图片URL</label>
-                            <input type="url" class="form-control" id="add_image_url" name="image_url" placeholder="https://...">
+                            <label for="add_image_url" class="form-label fw-bold">
+                                <i class="bi bi-image me-1"></i>图片URL
+                            </label>
+                            <input type="url" class="form-control" id="add_image_url" name="image_url" placeholder="https://example.com/image.jpg">
+                            <small class="form-text text-muted">
+                                <i class="bi bi-link-45deg me-1"></i>请输入图片的完整URL地址（可选）
+                            </small>
                         </div>
                         <div class="mb-3">
-                            <label for="add_content" class="form-label">详细内容</label>
-                            <textarea class="form-control" id="add_content" name="content" rows="6" required></textarea>
+                            <label for="add_content" class="form-label fw-bold">
+                                <i class="bi bi-file-text me-1"></i>详细内容 <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control" id="add_content" name="content" rows="6" required placeholder="请输入教程详细内容"></textarea>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="add_sort_order" class="form-label">排序</label>
-                                <input type="number" class="form-control" id="add_sort_order" name="sort_order" value="0">
+                                <label for="add_sort_order" class="form-label fw-bold">
+                                    <i class="bi bi-sort-numeric-down me-1"></i>排序
+                                </label>
+                                <input type="number" class="form-control" id="add_sort_order" name="sort_order" value="0" placeholder="0">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="add_status" class="form-label">状态</label>
+                                <label for="add_status" class="form-label fw-bold">
+                                    <i class="bi bi-toggle-on me-1"></i>状态
+                                </label>
                                 <select class="form-select" id="add_status" name="status">
                                     <option value="1">启用</option>
                                     <option value="0">禁用</option>
@@ -564,9 +584,13 @@ $products = $products_stmt->fetchAll(PDO::FETCH_ASSOC);
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="submit" class="btn btn-success">添加教程</button>
+                    <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>取消
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>添加教程
+                        </button>
                     </div>
                 </form>
             </div>
@@ -576,43 +600,63 @@ $products = $products_stmt->fetchAll(PDO::FETCH_ASSOC);
     <!-- 编辑教程模态框 -->
     <div class="modal fade" id="editTutorialModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">编辑教程</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px 20px 0 0; border: none; padding: 1.5rem 2rem;">
+                    <h5 class="modal-title text-white" style="font-size: 1.5rem; font-weight: 700;">
+                        <i class="bi bi-pencil-square me-2"></i>编辑教程
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form method="POST">
-                    <div class="modal-body">
+                    <div class="modal-body" style="padding: 2rem;">
                         <input type="hidden" name="action" value="edit">
                         <input type="hidden" name="id" id="edit_id">
                         <div class="mb-3">
-                            <label for="edit_product_id" class="form-label">关联商品</label>
+                            <label for="edit_product_id" class="form-label fw-bold">
+                                <i class="bi bi-box-seam me-1"></i>关联商品
+                            </label>
                             <select class="form-select" id="edit_product_id" name="product_id">
                                 <option value="">通用教程</option>
                                 <?php foreach ($products as $product): ?>
                                     <option value="<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['title']); ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>选择关联商品或留空作为通用教程
+                            </small>
                         </div>
                         <div class="mb-3">
-                            <label for="edit_title" class="form-label">标题</label>
-                            <input type="text" class="form-control" id="edit_title" name="title" required>
+                            <label for="edit_title" class="form-label fw-bold">
+                                <i class="bi bi-bookmark me-1"></i>标题 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="edit_title" name="title" required placeholder="请输入教程标题">
                         </div>
                         <div class="mb-3">
-                            <label for="edit_image_url" class="form-label">图片URL</label>
-                            <input type="url" class="form-control" id="edit_image_url" name="image_url" placeholder="https://...">
+                            <label for="edit_image_url" class="form-label fw-bold">
+                                <i class="bi bi-image me-1"></i>图片URL
+                            </label>
+                            <input type="url" class="form-control" id="edit_image_url" name="image_url" placeholder="https://example.com/image.jpg">
+                            <small class="form-text text-muted">
+                                <i class="bi bi-link-45deg me-1"></i>请输入图片的完整URL地址（可选）
+                            </small>
                         </div>
                         <div class="mb-3">
-                            <label for="edit_content" class="form-label">详细内容</label>
-                            <textarea class="form-control" id="edit_content" name="content" rows="6" required></textarea>
+                            <label for="edit_content" class="form-label fw-bold">
+                                <i class="bi bi-file-text me-1"></i>详细内容 <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control" id="edit_content" name="content" rows="6" required placeholder="请输入教程详细内容"></textarea>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="edit_sort_order" class="form-label">排序</label>
-                                <input type="number" class="form-control" id="edit_sort_order" name="sort_order">
+                                <label for="edit_sort_order" class="form-label fw-bold">
+                                    <i class="bi bi-sort-numeric-down me-1"></i>排序
+                                </label>
+                                <input type="number" class="form-control" id="edit_sort_order" name="sort_order" placeholder="0">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="edit_status" class="form-label">状态</label>
+                                <label for="edit_status" class="form-label fw-bold">
+                                    <i class="bi bi-toggle-on me-1"></i>状态
+                                </label>
                                 <select class="form-select" id="edit_status" name="status">
                                     <option value="1">启用</option>
                                     <option value="0">禁用</option>
@@ -620,9 +664,13 @@ $products = $products_stmt->fetchAll(PDO::FETCH_ASSOC);
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="submit" class="btn btn-warning">更新教程</button>
+                    <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>取消
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>保存修改
+                        </button>
                     </div>
                 </form>
             </div>
@@ -662,6 +710,14 @@ $products = $products_stmt->fetchAll(PDO::FETCH_ASSOC);
                 document.body.appendChild(form);
                 form.submit();
             }
+        }
+
+        // 重置添加表单
+        const addTutorialModal = document.getElementById('addTutorialModal');
+        if (addTutorialModal) {
+            addTutorialModal.addEventListener('hidden.bs.modal', function() {
+                document.getElementById('addTutorialForm').reset();
+            });
         }
 
         // 回车键搜索

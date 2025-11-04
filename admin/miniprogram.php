@@ -428,45 +428,59 @@ $miniprograms = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <!-- 添加小程序模态框 -->
     <div class="modal fade" id="addMiniprogramModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">添加小程序配置</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px 20px 0 0; border: none; padding: 1.5rem 2rem;">
+                    <h5 class="modal-title text-white" style="font-size: 1.5rem; font-weight: 700;">
+                        <i class="bi bi-plus-circle me-2"></i>添加小程序配置
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form method="POST">
-                    <div class="modal-body">
+                <form method="POST" id="addMiniprogramForm">
+                    <div class="modal-body" style="padding: 2rem;">
                         <input type="hidden" name="action" value="add">
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="add_app_name" class="form-label">小程序名称</label>
-                                <input type="text" class="form-control" id="add_app_name" name="app_name" required>
+                                <label for="add_app_name" class="form-label fw-bold">
+                                    <i class="bi bi-app me-1"></i>小程序名称 <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="add_app_name" name="app_name" required placeholder="请输入小程序名称">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="add_app_id" class="form-label">AppID</label>
-                                <input type="text" class="form-control" id="add_app_id" name="app_id" required>
+                                <label for="add_app_id" class="form-label fw-bold">
+                                    <i class="bi bi-key me-1"></i>AppID <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="add_app_id" name="app_id" required placeholder="请输入AppID">
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label for="add_app_secret" class="form-label">AppSecret</label>
-                            <input type="text" class="form-control" id="add_app_secret" name="app_secret" required>
+                            <label for="add_app_secret" class="form-label fw-bold">
+                                <i class="bi bi-lock me-1"></i>AppSecret <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="add_app_secret" name="app_secret" required placeholder="请输入AppSecret">
                         </div>
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label for="add_is_active" class="form-label">是否启用</label>
+                                <label for="add_is_active" class="form-label fw-bold">
+                                    <i class="bi bi-toggle-on me-1"></i>是否启用
+                                </label>
                                 <select class="form-select" id="add_is_active" name="is_active">
                                     <option value="1">启用</option>
                                     <option value="0">禁用</option>
                                 </select>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label for="add_login_enabled" class="form-label">是否开启登录</label>
+                                <label for="add_login_enabled" class="form-label fw-bold">
+                                    <i class="bi bi-person-check me-1"></i>是否开启登录
+                                </label>
                                 <select class="form-select" id="add_login_enabled" name="login_enabled">
                                     <option value="1">开启</option>
                                     <option value="0">关闭</option>
                                 </select>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label for="add_phone_bind_required" class="form-label">是否要求绑定手机</label>
+                                <label for="add_phone_bind_required" class="form-label fw-bold">
+                                    <i class="bi bi-phone me-1"></i>是否要求绑定手机
+                                </label>
                                 <select class="form-select" id="add_phone_bind_required" name="phone_bind_required">
                                     <option value="0">不要求</option>
                                     <option value="1">要求</option>
@@ -475,31 +489,43 @@ $miniprograms = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="add_mch_id" class="form-label">微信支付商户号</label>
-                                <input type="text" class="form-control" id="add_mch_id" name="mch_id">
+                                <label for="add_mch_id" class="form-label fw-bold">
+                                    <i class="bi bi-wallet2 me-1"></i>微信支付商户号
+                                </label>
+                                <input type="text" class="form-control" id="add_mch_id" name="mch_id" placeholder="请输入商户号">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="add_pay_key" class="form-label">微信支付密钥</label>
-                                <input type="text" class="form-control" id="add_pay_key" name="pay_key">
+                                <label for="add_pay_key" class="form-label fw-bold">
+                                    <i class="bi bi-key-fill me-1"></i>微信支付密钥
+                                </label>
+                                <input type="text" class="form-control" id="add_pay_key" name="pay_key" placeholder="请输入支付密钥">
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="add_pay_enabled" class="form-label">是否开启支付</label>
+                                <label for="add_pay_enabled" class="form-label fw-bold">
+                                    <i class="bi bi-credit-card me-1"></i>是否开启支付
+                                </label>
                                 <select class="form-select" id="add_pay_enabled" name="pay_enabled">
                                     <option value="0">关闭</option>
                                     <option value="1">开启</option>
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="add_pay_notify_url" class="form-label">支付回调地址</label>
-                                <input type="url" class="form-control" id="add_pay_notify_url" name="pay_notify_url">
+                                <label for="add_pay_notify_url" class="form-label fw-bold">
+                                    <i class="bi bi-link-45deg me-1"></i>支付回调地址
+                                </label>
+                                <input type="url" class="form-control" id="add_pay_notify_url" name="pay_notify_url" placeholder="https://example.com/pay_notify.php">
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="submit" class="btn btn-success">添加小程序</button>
+                    <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>取消
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>添加小程序
+                        </button>
                     </div>
                 </form>
             </div>
@@ -509,46 +535,60 @@ $miniprograms = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <!-- 编辑小程序模态框 -->
     <div class="modal fade" id="editMiniprogramModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">编辑小程序配置</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px 20px 0 0; border: none; padding: 1.5rem 2rem;">
+                    <h5 class="modal-title text-white" style="font-size: 1.5rem; font-weight: 700;">
+                        <i class="bi bi-pencil-square me-2"></i>编辑小程序配置
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form method="POST">
-                    <div class="modal-body">
+                    <div class="modal-body" style="padding: 2rem;">
                         <input type="hidden" name="action" value="edit">
                         <input type="hidden" name="id" id="edit_id">
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="edit_app_name" class="form-label">小程序名称</label>
-                                <input type="text" class="form-control" id="edit_app_name" name="app_name" required>
+                                <label for="edit_app_name" class="form-label fw-bold">
+                                    <i class="bi bi-app me-1"></i>小程序名称 <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="edit_app_name" name="app_name" required placeholder="请输入小程序名称">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="edit_app_id" class="form-label">AppID</label>
-                                <input type="text" class="form-control" id="edit_app_id" name="app_id" required>
+                                <label for="edit_app_id" class="form-label fw-bold">
+                                    <i class="bi bi-key me-1"></i>AppID <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="edit_app_id" name="app_id" required placeholder="请输入AppID">
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label for="edit_app_secret" class="form-label">AppSecret</label>
-                            <input type="text" class="form-control" id="edit_app_secret" name="app_secret" required>
+                            <label for="edit_app_secret" class="form-label fw-bold">
+                                <i class="bi bi-lock me-1"></i>AppSecret <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="edit_app_secret" name="app_secret" required placeholder="请输入AppSecret">
                         </div>
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label for="edit_is_active" class="form-label">是否启用</label>
+                                <label for="edit_is_active" class="form-label fw-bold">
+                                    <i class="bi bi-toggle-on me-1"></i>是否启用
+                                </label>
                                 <select class="form-select" id="edit_is_active" name="is_active">
                                     <option value="1">启用</option>
                                     <option value="0">禁用</option>
                                 </select>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label for="edit_login_enabled" class="form-label">是否开启登录</label>
+                                <label for="edit_login_enabled" class="form-label fw-bold">
+                                    <i class="bi bi-person-check me-1"></i>是否开启登录
+                                </label>
                                 <select class="form-select" id="edit_login_enabled" name="login_enabled">
                                     <option value="1">开启</option>
                                     <option value="0">关闭</option>
                                 </select>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label for="edit_phone_bind_required" class="form-label">是否要求绑定手机</label>
+                                <label for="edit_phone_bind_required" class="form-label fw-bold">
+                                    <i class="bi bi-phone me-1"></i>是否要求绑定手机
+                                </label>
                                 <select class="form-select" id="edit_phone_bind_required" name="phone_bind_required">
                                     <option value="0">不要求</option>
                                     <option value="1">要求</option>
@@ -557,31 +597,43 @@ $miniprograms = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="edit_mch_id" class="form-label">微信支付商户号</label>
-                                <input type="text" class="form-control" id="edit_mch_id" name="mch_id">
+                                <label for="edit_mch_id" class="form-label fw-bold">
+                                    <i class="bi bi-wallet2 me-1"></i>微信支付商户号
+                                </label>
+                                <input type="text" class="form-control" id="edit_mch_id" name="mch_id" placeholder="请输入商户号">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="edit_pay_key" class="form-label">微信支付密钥</label>
-                                <input type="text" class="form-control" id="edit_pay_key" name="pay_key">
+                                <label for="edit_pay_key" class="form-label fw-bold">
+                                    <i class="bi bi-key-fill me-1"></i>微信支付密钥
+                                </label>
+                                <input type="text" class="form-control" id="edit_pay_key" name="pay_key" placeholder="请输入支付密钥">
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="edit_pay_enabled" class="form-label">是否开启支付</label>
+                                <label for="edit_pay_enabled" class="form-label fw-bold">
+                                    <i class="bi bi-credit-card me-1"></i>是否开启支付
+                                </label>
                                 <select class="form-select" id="edit_pay_enabled" name="pay_enabled">
                                     <option value="0">关闭</option>
                                     <option value="1">开启</option>
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="edit_pay_notify_url" class="form-label">支付回调地址</label>
-                                <input type="url" class="form-control" id="edit_pay_notify_url" name="pay_notify_url">
+                                <label for="edit_pay_notify_url" class="form-label fw-bold">
+                                    <i class="bi bi-link-45deg me-1"></i>支付回调地址
+                                </label>
+                                <input type="url" class="form-control" id="edit_pay_notify_url" name="pay_notify_url" placeholder="https://example.com/pay_notify.php">
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="submit" class="btn btn-warning">更新配置</button>
+                    <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>取消
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>保存修改
+                        </button>
                     </div>
                 </form>
             </div>
@@ -617,6 +669,14 @@ $miniprograms = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 document.body.appendChild(form);
                 form.submit();
             }
+        }
+
+        // 重置添加表单
+        const addMiniprogramModal = document.getElementById('addMiniprogramModal');
+        if (addMiniprogramModal) {
+            addMiniprogramModal.addEventListener('hidden.bs.modal', function() {
+                document.getElementById('addMiniprogramForm').reset();
+            });
         }
     </script>
 </body>

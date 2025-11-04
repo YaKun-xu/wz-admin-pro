@@ -366,71 +366,16 @@ try {
                 </div>
             <?php endif; ?>
 
-            <!-- 添加商品表单 -->
-            <div class="content-card">
-                <h3 class="mb-4">
-                    <i class="bi bi-plus-circle me-2"></i>添加商品
-                </h3>
-                <form method="POST">
-                    <input type="hidden" name="action" value="add">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">商品标题</label>
-                            <input type="text" class="form-control" name="title" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">价格</label>
-                            <input type="number" class="form-control" name="price" step="0.01" min="0" required>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">分类</label>
-                            <select class="form-select" name="category_id" required>
-                                <option value="">请选择分类</option>
-                                <?php foreach ($categories as $category): ?>
-                                    <option value="<?php echo $category['id']; ?>"><?php echo htmlspecialchars($category['name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">商品类型</label>
-                            <select class="form-select" name="product_type" required>
-                                <option value="1" selected>普通商品</option>
-                                <option value="2">卡密商品</option>
-                            </select>
-                            <small class="form-text text-muted">普通商品：手动处理订单；卡密商品：自动发放卡密</small>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-12 mb-3">
-                            <label class="form-label">描述</label>
-                            <input type="text" class="form-control" name="description">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-12 mb-3">
-                            <label class="form-label">商品图片URL</label>
-                            <input type="url" class="form-control" name="image_url" id="add_image_url" placeholder="https://example.com/image.jpg">
-                            <small class="form-text text-muted">请输入图片的完整URL地址</small>
-                            <div id="add_image_preview" class="mt-2" style="display: none;">
-                                <img id="add_image_preview_img" src="" alt="预览" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 1px solid #ddd;">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="text-end">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-plus-lg me-2"></i>添加商品
-                        </button>
-                    </div>
-                </form>
-            </div>
-
             <!-- 商品列表 -->
             <div class="content-card">
-                <h3 class="mb-4">
-                    <i class="bi bi-list-ul me-2"></i>商品列表
-                </h3>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="mb-0">
+                        <i class="bi bi-list-ul me-2"></i>商品列表
+                    </h3>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+                        <i class="bi bi-plus-circle me-2"></i>添加商品
+                    </button>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -491,59 +436,175 @@ try {
         </div>
     </div>
 
-    <!-- 编辑商品模态框 -->
-    <div class="modal fade" id="editModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">编辑商品</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <!-- 添加商品模态框 -->
+    <div class="modal fade" id="addModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px 20px 0 0; border: none; padding: 1.5rem 2rem;">
+                    <h5 class="modal-title text-white" style="font-size: 1.5rem; font-weight: 700;">
+                        <i class="bi bi-plus-circle me-2"></i>添加商品
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form method="POST" id="editForm">
-                    <div class="modal-body">
-                        <input type="hidden" name="action" value="edit">
-                        <input type="hidden" name="id" id="edit_id">
-                        <div class="mb-3">
-                            <label class="form-label">商品标题</label>
-                            <input type="text" class="form-control" name="title" id="edit_title" required>
+                <form method="POST" id="addForm">
+                    <div class="modal-body" style="padding: 2rem;">
+                        <input type="hidden" name="action" value="add">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-tag me-1"></i>商品标题 <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" name="title" id="add_title" required placeholder="请输入商品标题">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-currency-yen me-1"></i>价格 <span class="text-danger">*</span>
+                                </label>
+                                <input type="number" class="form-control" name="price" id="add_price" step="0.01" min="0" required placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-folder me-1"></i>分类 <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" name="category_id" id="add_category_id" required>
+                                    <option value="">请选择分类</option>
+                                    <?php foreach ($categories as $category): ?>
+                                        <option value="<?php echo $category['id']; ?>"><?php echo htmlspecialchars($category['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-box-seam me-1"></i>商品类型 <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" name="product_type" id="add_product_type" required>
+                                    <option value="1" selected>普通商品</option>
+                                    <option value="2">卡密商品</option>
+                                </select>
+                                <small class="form-text text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>普通商品：手动处理订单；卡密商品：自动发放卡密
+                                </small>
+                            </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">价格</label>
-                            <input type="number" class="form-control" name="price" id="edit_price" step="0.01" min="0" required>
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-file-text me-1"></i>描述
+                            </label>
+                            <textarea class="form-control" name="description" id="add_description" rows="3" placeholder="请输入商品描述（可选）"></textarea>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">分类</label>
-                            <select class="form-select" name="category_id" id="edit_category_id" required>
-                                <option value="">请选择分类</option>
-                                <?php foreach ($categories as $category): ?>
-                                    <option value="<?php echo $category['id']; ?>"><?php echo htmlspecialchars($category['name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">商品类型</label>
-                            <select class="form-select" name="product_type" id="edit_product_type" required>
-                                <option value="1">普通商品</option>
-                                <option value="2">卡密商品</option>
-                            </select>
-                            <small class="form-text text-muted">普通商品：手动处理订单；卡密商品：自动发放卡密</small>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">描述</label>
-                            <input type="text" class="form-control" name="description" id="edit_description">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">商品图片URL</label>
-                            <input type="url" class="form-control" name="image_url" id="edit_image_url" placeholder="https://example.com/image.jpg">
-                            <small class="form-text text-muted">请输入图片的完整URL地址</small>
-                            <div id="edit_image_preview" class="mt-2" style="display: none;">
-                                <img id="edit_image_preview_img" src="" alt="预览" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 1px solid #ddd;">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-image me-1"></i>商品图片URL
+                            </label>
+                            <input type="url" class="form-control" name="image_url" id="add_image_url" placeholder="https://example.com/image.jpg">
+                            <small class="form-text text-muted">
+                                <i class="bi bi-link-45deg me-1"></i>请输入图片的完整URL地址
+                            </small>
+                            <div id="add_image_preview" class="mt-3" style="display: none;">
+                                <div class="border rounded p-3" style="background: #f8f9fa;">
+                                    <p class="mb-2 text-muted small">图片预览：</p>
+                                    <img id="add_image_preview_img" src="" alt="预览" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 1px solid #dee2e6;">
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="submit" class="btn btn-primary">保存修改</button>
+                    <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>取消
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>添加商品
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑商品模态框 -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px 20px 0 0; border: none; padding: 1.5rem 2rem;">
+                    <h5 class="modal-title text-white" style="font-size: 1.5rem; font-weight: 700;">
+                        <i class="bi bi-pencil-square me-2"></i>编辑商品
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" id="editForm">
+                    <div class="modal-body" style="padding: 2rem;">
+                        <input type="hidden" name="action" value="edit">
+                        <input type="hidden" name="id" id="edit_id">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-tag me-1"></i>商品标题 <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" name="title" id="edit_title" required placeholder="请输入商品标题">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-currency-yen me-1"></i>价格 <span class="text-danger">*</span>
+                                </label>
+                                <input type="number" class="form-control" name="price" id="edit_price" step="0.01" min="0" required placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-folder me-1"></i>分类 <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" name="category_id" id="edit_category_id" required>
+                                    <option value="">请选择分类</option>
+                                    <?php foreach ($categories as $category): ?>
+                                        <option value="<?php echo $category['id']; ?>"><?php echo htmlspecialchars($category['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-box-seam me-1"></i>商品类型 <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" name="product_type" id="edit_product_type" required>
+                                    <option value="1">普通商品</option>
+                                    <option value="2">卡密商品</option>
+                                </select>
+                                <small class="form-text text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>普通商品：手动处理订单；卡密商品：自动发放卡密
+                                </small>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-file-text me-1"></i>描述
+                            </label>
+                            <textarea class="form-control" name="description" id="edit_description" rows="3" placeholder="请输入商品描述（可选）"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-image me-1"></i>商品图片URL
+                            </label>
+                            <input type="url" class="form-control" name="image_url" id="edit_image_url" placeholder="https://example.com/image.jpg">
+                            <small class="form-text text-muted">
+                                <i class="bi bi-link-45deg me-1"></i>请输入图片的完整URL地址
+                            </small>
+                            <div id="edit_image_preview" class="mt-3" style="display: none;">
+                                <div class="border rounded p-3" style="background: #f8f9fa;">
+                                    <p class="mb-2 text-muted small">图片预览：</p>
+                                    <img id="edit_image_preview_img" src="" alt="预览" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 1px solid #dee2e6;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>取消
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>保存修改
+                        </button>
                     </div>
                 </form>
             </div>
@@ -628,6 +689,10 @@ try {
             if (imageUrl && imageUrl.trim() !== '') {
                 previewImg.src = imageUrl;
                 preview.style.display = 'block';
+                // 图片加载错误处理
+                previewImg.onerror = function() {
+                    preview.innerHTML = '<div class="alert alert-warning mb-0"><i class="bi bi-exclamation-triangle me-2"></i>图片加载失败，请检查URL是否正确</div>';
+                };
             } else {
                 preview.style.display = 'none';
             }
@@ -639,6 +704,15 @@ try {
             if (addImageInput) {
                 addImageInput.addEventListener('input', function() {
                     updateImagePreview(this.value.trim(), 'add_image_preview');
+                });
+            }
+            
+            // 重置添加表单
+            const addModal = document.getElementById('addModal');
+            if (addModal) {
+                addModal.addEventListener('hidden.bs.modal', function() {
+                    document.getElementById('addForm').reset();
+                    document.getElementById('add_image_preview').style.display = 'none';
                 });
             }
 
