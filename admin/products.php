@@ -30,6 +30,7 @@ if ($_POST) {
         $price = floatval($_POST['price'] ?? 0);
         $category_id = intval($_POST['category_id'] ?? 0);
         $product_type = intval($_POST['product_type'] ?? 1); // 默认普通商品
+        $status = intval($_POST['status'] ?? 1); // 默认上架
         $image_url = trim($_POST['image_url'] ?? '');
         
         if (empty($title) || $price <= 0) {
@@ -40,8 +41,8 @@ if ($_POST) {
                 $pdo->beginTransaction();
                 
                 // 插入商品
-                $stmt = $pdo->prepare("INSERT INTO shop_products (title, description, price, category_id, product_type, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-                $stmt->execute([$title, $description, $price, $category_id, $product_type]);
+                $stmt = $pdo->prepare("INSERT INTO shop_products (title, description, price, category_id, product_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$title, $description, $price, $category_id, $product_type, $status]);
                 $product_id = $pdo->lastInsertId();
                 
                 // 如果有图片URL，插入图片
@@ -68,6 +69,7 @@ if ($_POST) {
         $price = floatval($_POST['price'] ?? 0);
         $category_id = intval($_POST['category_id'] ?? 0);
         $product_type = intval($_POST['product_type'] ?? 1);
+        $status = intval($_POST['status'] ?? 1);
         $image_url = trim($_POST['image_url'] ?? '');
         
         if (empty($title) || $price <= 0) {
@@ -78,8 +80,8 @@ if ($_POST) {
                 $pdo->beginTransaction();
                 
                 // 更新商品
-                $stmt = $pdo->prepare("UPDATE shop_products SET title = ?, description = ?, price = ?, category_id = ?, product_type = ?, updated_at = NOW() WHERE id = ?");
-                $stmt->execute([$title, $description, $price, $category_id, $product_type, $id]);
+                $stmt = $pdo->prepare("UPDATE shop_products SET title = ?, description = ?, price = ?, category_id = ?, product_type = ?, status = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$title, $description, $price, $category_id, $product_type, $status, $id]);
                 
                 // 处理图片
                 if (!empty($image_url)) {
@@ -122,6 +124,31 @@ if ($_POST) {
             $messageType = 'danger';
         }
     }
+    
+    if ($action === 'toggle_status') {
+        $id = intval($_POST['id'] ?? 0);
+        try {
+            // 获取当前状态
+            $stmt = $pdo->prepare("SELECT status FROM shop_products WHERE id = ?");
+            $stmt->execute([$id]);
+            $product = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($product) {
+                // 切换状态：1变0，0变1
+                $new_status = $product['status'] == 1 ? 0 : 1;
+                $stmt = $pdo->prepare("UPDATE shop_products SET status = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$new_status, $id]);
+                $message = $new_status == 1 ? '商品已上架' : '商品已下架';
+                $messageType = 'success';
+            } else {
+                $message = '商品不存在';
+                $messageType = 'danger';
+            }
+        } catch (Exception $e) {
+            $message = '操作失败：' . $e->getMessage();
+            $messageType = 'danger';
+        }
+    }
 }
 
 // 获取商品列表
@@ -156,7 +183,7 @@ try {
                END as product_type_name
         FROM shop_products p 
         LEFT JOIN shop_categories c ON p.category_id = c.id 
-        ORDER BY p.created_at DESC
+        ORDER BY p.status DESC, p.created_at DESC
     ");
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
@@ -386,6 +413,7 @@ try {
                                 <th>分类</th>
                                 <th>类型</th>
                                 <th>价格</th>
+                                <th>状态</th>
                                 <th>描述</th>
                                 <th>创建时间</th>
                                 <th>操作</th>
@@ -417,6 +445,25 @@ try {
                                         <?php endif; ?>
                                     </td>
                                     <td>¥<?php echo number_format($product['price'], 2); ?></td>
+                                    <td>
+                                        <?php if (($product['status'] ?? 1) == 1): ?>
+                                            <span class="badge bg-success" style="cursor: pointer; transition: all 0.3s ease;" 
+                                                  onclick="toggleStatus(<?php echo $product['id']; ?>, <?php echo ($product['status'] ?? 1); ?>)" 
+                                                  onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)';" 
+                                                  onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none';" 
+                                                  title="点击切换为下架">
+                                                <i class="bi bi-check-circle me-1"></i>上架
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-secondary" style="cursor: pointer; transition: all 0.3s ease;" 
+                                                  onclick="toggleStatus(<?php echo $product['id']; ?>, <?php echo ($product['status'] ?? 1); ?>)" 
+                                                  onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)';" 
+                                                  onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none';" 
+                                                  title="点击切换为上架">
+                                                <i class="bi bi-x-circle me-1"></i>下架
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?php echo htmlspecialchars($product['description'] ?? ''); ?></td>
                                     <td><?php echo date('Y-m-d H:i', strtotime($product['created_at'])); ?></td>
                                     <td>
@@ -487,6 +534,18 @@ try {
                                     <i class="bi bi-info-circle me-1"></i>普通商品：手动处理订单；卡密商品：自动发放卡密
                                 </small>
                             </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-toggle-on me-1"></i>上架状态 <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" name="status" id="add_status" required>
+                                <option value="1" selected>上架</option>
+                                <option value="0">下架</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>上架后商品将显示在小程序中，下架后用户无法购买
+                            </small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">
@@ -578,6 +637,18 @@ try {
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">
+                                <i class="bi bi-toggle-on me-1"></i>上架状态 <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" name="status" id="edit_status" required>
+                                <option value="1">上架</option>
+                                <option value="0">下架</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>上架后商品将显示在小程序中，下架后用户无法购买
+                            </small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
                                 <i class="bi bi-file-text me-1"></i>描述
                             </label>
                             <textarea class="form-control" name="description" id="edit_description" rows="3" placeholder="请输入商品描述（可选）"></textarea>
@@ -634,6 +705,37 @@ try {
         </div>
     </div>
 
+    <!-- 上下架确认模态框 -->
+    <div class="modal fade" id="toggleStatusModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="border-radius: 15px; border: none; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);">
+                <div class="modal-header" id="toggleStatusHeader" style="border-radius: 15px 15px 0 0; border: none; padding: 1.5rem;">
+                    <h5 class="modal-title text-white" id="toggleStatusTitle" style="font-size: 1.3rem; font-weight: 600;">
+                        <i class="bi" id="toggleStatusIcon"></i>
+                        <span id="toggleStatusText"></span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 2rem;">
+                    <p class="mb-0" id="toggleStatusMessage" style="font-size: 1rem; line-height: 1.6;"></p>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem; border-radius: 0 0 15px 15px;">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>取消
+                    </button>
+                    <form method="POST" style="display: inline;" id="toggleStatusForm">
+                        <input type="hidden" name="action" value="toggle_status">
+                        <input type="hidden" name="id" id="toggle_status_id">
+                        <button type="submit" class="btn" id="toggleStatusBtn">
+                            <i class="bi me-2" id="toggleStatusBtnIcon"></i>
+                            <span id="toggleStatusBtnText"></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 图片预览模态框 -->
     <div class="modal fade" id="imagePreviewModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
@@ -657,6 +759,7 @@ try {
             document.getElementById('edit_price').value = product.price;
             document.getElementById('edit_category_id').value = product.category_id;
             document.getElementById('edit_product_type').value = product.product_type || 1;
+            document.getElementById('edit_status').value = product.status ?? 1;
             document.getElementById('edit_description').value = product.description || '';
             
             // 获取商品图片
@@ -728,6 +831,44 @@ try {
         function deleteProduct(id) {
             document.getElementById('delete_id').value = id;
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        function toggleStatus(id, currentStatus) {
+            const modal = new bootstrap.Modal(document.getElementById('toggleStatusModal'));
+            const isUp = currentStatus == 1;
+            
+            // 设置标题和图标
+            const header = document.getElementById('toggleStatusHeader');
+            const title = document.getElementById('toggleStatusTitle');
+            const icon = document.getElementById('toggleStatusIcon');
+            const message = document.getElementById('toggleStatusMessage');
+            const btn = document.getElementById('toggleStatusBtn');
+            const btnIcon = document.getElementById('toggleStatusBtnIcon');
+            const btnText = document.getElementById('toggleStatusBtnText');
+            const form = document.getElementById('toggleStatusForm');
+            
+            if (isUp) {
+                // 下架操作
+                header.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+                icon.className = 'bi bi-arrow-down-circle me-2';
+                title.innerHTML = '<i class="bi bi-arrow-down-circle me-2"></i>确认下架';
+                message.textContent = '确定要将商品下架吗？下架后商品将不再显示在小程序中，用户将无法购买此商品。';
+                btn.className = 'btn btn-warning';
+                btnIcon.className = 'bi bi-arrow-down-circle';
+                btnText.textContent = '确认下架';
+            } else {
+                // 上架操作
+                header.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                icon.className = 'bi bi-arrow-up-circle me-2';
+                title.innerHTML = '<i class="bi bi-arrow-up-circle me-2"></i>确认上架';
+                message.textContent = '确定要将商品上架吗？上架后商品将显示在小程序中，用户将可以购买此商品。';
+                btn.className = 'btn btn-success';
+                btnIcon.className = 'bi bi-arrow-up-circle';
+                btnText.textContent = '确认上架';
+            }
+            
+            document.getElementById('toggle_status_id').value = id;
+            modal.show();
         }
 
         // 自动隐藏提示消息

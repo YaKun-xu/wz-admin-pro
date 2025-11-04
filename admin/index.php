@@ -32,7 +32,6 @@ $stats = [
 $user_growth = [];
 $revenue_trend = [];
 $popular_products = [];
-$recent_orders = [];
 $db_error = false;
 
 // 尝试连接数据库
@@ -129,17 +128,6 @@ try {
         LIMIT 5
     ");
     $popular_products = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // 获取最近订单
-    $stmt = $pdo->query("
-        SELECT o.*, p.title as product_name, u.nickname as username 
-        FROM orders o 
-        LEFT JOIN shop_products p ON o.product_id = p.id 
-        LEFT JOIN users u ON o.user_id = u.id 
-        ORDER BY o.created_at DESC 
-        LIMIT 5
-    ");
-    $recent_orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (Exception $e) {
     echo "<!-- 数据库错误: " . $e->getMessage() . " -->";
@@ -518,53 +506,6 @@ try {
                     </div>
                 </div>
 
-                <!-- 最近订单 -->
-                <div class="row">
-                    <div class="col-12">
-                        <div class="table-card">
-                            <div class="chart-title">
-                                <i class="bi bi-clock-history me-2"></i>最近订单
-                            </div>
-                            <?php if (!empty($recent_orders)): ?>
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>订单ID</th>
-                                                <th>商品名称</th>
-                                                <th>用户</th>
-                                                <th>金额</th>
-                                                <th>状态</th>
-                                                <th>时间</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($recent_orders as $order): ?>
-                                            <tr>
-                                                <td>#<?php echo $order['id']; ?></td>
-                                                <td><?php echo htmlspecialchars($order['product_name'] ?? ''); ?></td>
-                                                <td><?php echo htmlspecialchars($order['username'] ?? '未知用户'); ?></td>
-                                                <td>¥<?php echo number_format($order['total_amount'], 2); ?></td>
-                                                <td>
-                                                    <span class="badge <?php echo $order['status'] === 'completed' ? 'badge-success' : ($order['status'] === 'pending' ? 'badge-warning' : 'badge-danger'); ?>">
-                                                        <?php echo $order['status'] === 'completed' ? '已完成' : ($order['status'] === 'pending' ? '待处理' : '已取消'); ?>
-                                                    </span>
-                                                </td>
-                                                <td><?php echo date('m-d H:i', strtotime($order['created_at'])); ?></td>
-                                            </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <?php else: ?>
-                                <div class="empty-state">
-                                    <i class="bi bi-clock-history"></i>
-                                    <p>暂无订单数据</p>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
             <?php endif; ?>
         </div>
     </div>
