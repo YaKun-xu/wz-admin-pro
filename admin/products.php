@@ -29,17 +29,32 @@ if ($_POST) {
         $description = trim($_POST['description'] ?? '');
         $price = floatval($_POST['price'] ?? 0);
         $category_id = intval($_POST['category_id'] ?? 0);
+        $product_type = intval($_POST['product_type'] ?? 1); // 默认普通商品
+        $image_url = trim($_POST['image_url'] ?? '');
         
         if (empty($title) || $price <= 0) {
             $message = '商品标题和价格不能为空';
             $messageType = 'danger';
         } else {
             try {
-                $stmt = $pdo->prepare("INSERT INTO shop_products (title, description, price, category_id, created_at) VALUES (?, ?, ?, ?, NOW())");
-                $stmt->execute([$title, $description, $price, $category_id]);
+                $pdo->beginTransaction();
+                
+                // 插入商品
+                $stmt = $pdo->prepare("INSERT INTO shop_products (title, description, price, category_id, product_type, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$title, $description, $price, $category_id, $product_type]);
+                $product_id = $pdo->lastInsertId();
+                
+                // 如果有图片URL，插入图片
+                if (!empty($image_url)) {
+                    $stmt = $pdo->prepare("INSERT INTO shop_product_images (product_id, image_url, sort_order, created_at) VALUES (?, ?, 0, NOW())");
+                    $stmt->execute([$product_id, $image_url]);
+                }
+                
+                $pdo->commit();
                 $message = '商品添加成功';
                 $messageType = 'success';
             } catch (Exception $e) {
+                $pdo->rollBack();
                 $message = '添加失败：' . $e->getMessage();
                 $messageType = 'danger';
             }
@@ -52,17 +67,43 @@ if ($_POST) {
         $description = trim($_POST['description'] ?? '');
         $price = floatval($_POST['price'] ?? 0);
         $category_id = intval($_POST['category_id'] ?? 0);
+        $product_type = intval($_POST['product_type'] ?? 1);
+        $image_url = trim($_POST['image_url'] ?? '');
         
         if (empty($title) || $price <= 0) {
             $message = '商品标题和价格不能为空';
             $messageType = 'danger';
         } else {
             try {
-                $stmt = $pdo->prepare("UPDATE shop_products SET title = ?, description = ?, price = ?, category_id = ?, updated_at = NOW() WHERE id = ?");
-                $stmt->execute([$title, $description, $price, $category_id, $id]);
+                $pdo->beginTransaction();
+                
+                // 更新商品
+                $stmt = $pdo->prepare("UPDATE shop_products SET title = ?, description = ?, price = ?, category_id = ?, product_type = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$title, $description, $price, $category_id, $product_type, $id]);
+                
+                // 处理图片
+                if (!empty($image_url)) {
+                    // 检查是否已有图片
+                    $stmt = $pdo->prepare("SELECT id FROM shop_product_images WHERE product_id = ? LIMIT 1");
+                    $stmt->execute([$id]);
+                    $existing_image = $stmt->fetch();
+                    
+                    if ($existing_image) {
+                        // 更新现有图片
+                        $stmt = $pdo->prepare("UPDATE shop_product_images SET image_url = ? WHERE id = ?");
+                        $stmt->execute([$image_url, $existing_image['id']]);
+                    } else {
+                        // 插入新图片
+                        $stmt = $pdo->prepare("INSERT INTO shop_product_images (product_id, image_url, sort_order, created_at) VALUES (?, ?, 0, NOW())");
+                        $stmt->execute([$id, $image_url]);
+                    }
+                }
+                
+                $pdo->commit();
                 $message = '商品更新成功';
                 $messageType = 'success';
             } catch (Exception $e) {
+                $pdo->rollBack();
                 $message = '更新失败：' . $e->getMessage();
                 $messageType = 'danger';
             }
@@ -87,8 +128,36 @@ if ($_POST) {
 $products = [];
 $categories = [];
 
+// 处理获取图片请求
+if (isset($_GET['action']) && $_GET['action'] === 'get_image') {
+    $id = intval($_GET['id'] ?? 0);
+    try {
+        $stmt = $pdo->prepare("SELECT image_url FROM shop_product_images WHERE product_id = ? ORDER BY sort_order ASC LIMIT 1");
+        $stmt->execute([$id]);
+        $image = $stmt->fetch(PDO::FETCH_ASSOC);
+        header('Content-Type: application/json');
+        echo json_encode(['image_url' => $image['image_url'] ?? '']);
+        exit;
+    } catch (Exception $e) {
+        header('Content-Type: application/json');
+        echo json_encode(['image_url' => '']);
+        exit;
+    }
+}
+
 try {
-    $stmt = $pdo->query("SELECT p.*, c.name as category_name FROM shop_products p LEFT JOIN shop_categories c ON p.category_id = c.id ORDER BY p.created_at DESC");
+    $stmt = $pdo->query("
+        SELECT p.*, c.name as category_name, 
+               (SELECT image_url FROM shop_product_images WHERE product_id = p.id ORDER BY sort_order ASC LIMIT 1) as cover_image,
+               CASE p.product_type 
+                   WHEN 1 THEN '普通商品' 
+                   WHEN 2 THEN '卡密商品' 
+                   ELSE '未知' 
+               END as product_type_name
+        FROM shop_products p 
+        LEFT JOIN shop_categories c ON p.category_id = c.id 
+        ORDER BY p.created_at DESC
+    ");
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     $stmt = $pdo->query("SELECT * FROM shop_categories ORDER BY name");
@@ -253,6 +322,20 @@ try {
             box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
         }
 
+        .image-preview {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+
+        .image-preview img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+        }
+
         /* 响应式设计 */
         @media (max-width: 768px) {
             .main-content-wrapper {
@@ -311,8 +394,28 @@ try {
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
+                            <label class="form-label">商品类型</label>
+                            <select class="form-select" name="product_type" required>
+                                <option value="1" selected>普通商品</option>
+                                <option value="2">卡密商品</option>
+                            </select>
+                            <small class="form-text text-muted">普通商品：手动处理订单；卡密商品：自动发放卡密</small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mb-3">
                             <label class="form-label">描述</label>
                             <input type="text" class="form-control" name="description">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label">商品图片URL</label>
+                            <input type="url" class="form-control" name="image_url" id="add_image_url" placeholder="https://example.com/image.jpg">
+                            <small class="form-text text-muted">请输入图片的完整URL地址</small>
+                            <div id="add_image_preview" class="mt-2" style="display: none;">
+                                <img id="add_image_preview_img" src="" alt="预览" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 1px solid #ddd;">
+                            </div>
                         </div>
                     </div>
                     <div class="text-end">
@@ -333,8 +436,10 @@ try {
                         <thead>
                             <tr>
                                 <th>ID</th>
+                                <th>图片</th>
                                 <th>标题</th>
                                 <th>分类</th>
+                                <th>类型</th>
                                 <th>价格</th>
                                 <th>描述</th>
                                 <th>创建时间</th>
@@ -345,8 +450,27 @@ try {
                             <?php foreach ($products as $product): ?>
                                 <tr>
                                     <td><?php echo $product['id']; ?></td>
+                                    <td>
+                                        <?php if (!empty($product['cover_image'])): ?>
+                                            <img src="<?php echo htmlspecialchars($product['cover_image']); ?>" 
+                                                 alt="商品图片" 
+                                                 style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; cursor: pointer;"
+                                                 onclick="previewImage('<?php echo htmlspecialchars($product['cover_image']); ?>')">
+                                        <?php else: ?>
+                                            <span class="text-muted">无图片</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?php echo htmlspecialchars($product['title']); ?></td>
                                     <td><?php echo htmlspecialchars($product['category_name'] ?? '未分类'); ?></td>
+                                    <td>
+                                        <?php if ($product['product_type'] == 1): ?>
+                                            <span class="badge bg-primary">普通商品</span>
+                                        <?php elseif ($product['product_type'] == 2): ?>
+                                            <span class="badge bg-success">卡密商品</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-secondary">未知</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>¥<?php echo number_format($product['price'], 2); ?></td>
                                     <td><?php echo htmlspecialchars($product['description'] ?? ''); ?></td>
                                     <td><?php echo date('Y-m-d H:i', strtotime($product['created_at'])); ?></td>
@@ -397,8 +521,24 @@ try {
                             </select>
                         </div>
                         <div class="mb-3">
+                            <label class="form-label">商品类型</label>
+                            <select class="form-select" name="product_type" id="edit_product_type" required>
+                                <option value="1">普通商品</option>
+                                <option value="2">卡密商品</option>
+                            </select>
+                            <small class="form-text text-muted">普通商品：手动处理订单；卡密商品：自动发放卡密</small>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">描述</label>
                             <input type="text" class="form-control" name="description" id="edit_description">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">商品图片URL</label>
+                            <input type="url" class="form-control" name="image_url" id="edit_image_url" placeholder="https://example.com/image.jpg">
+                            <small class="form-text text-muted">请输入图片的完整URL地址</small>
+                            <div id="edit_image_preview" class="mt-2" style="display: none;">
+                                <img id="edit_image_preview_img" src="" alt="预览" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 1px solid #ddd;">
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -433,6 +573,21 @@ try {
         </div>
     </div>
 
+    <!-- 图片预览模态框 -->
+    <div class="modal fade" id="imagePreviewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">图片预览</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="preview_image" src="" alt="预览" style="max-width: 100%; max-height: 70vh; border-radius: 8px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function editProduct(product) {
@@ -440,10 +595,61 @@ try {
             document.getElementById('edit_title').value = product.title;
             document.getElementById('edit_price').value = product.price;
             document.getElementById('edit_category_id').value = product.category_id;
+            document.getElementById('edit_product_type').value = product.product_type || 1;
             document.getElementById('edit_description').value = product.description || '';
+            
+            // 获取商品图片
+            fetch('products.php?action=get_image&id=' + product.id)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.image_url) {
+                        document.getElementById('edit_image_url').value = data.image_url;
+                        updateImagePreview(data.image_url, 'edit_image_preview');
+                    } else {
+                        document.getElementById('edit_image_url').value = '';
+                        document.getElementById('edit_image_preview').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('获取图片失败:', error);
+                });
             
             new bootstrap.Modal(document.getElementById('editModal')).show();
         }
+
+        function previewImage(imageUrl) {
+            document.getElementById('preview_image').src = imageUrl;
+            new bootstrap.Modal(document.getElementById('imagePreviewModal')).show();
+        }
+
+        function updateImagePreview(imageUrl, previewId) {
+            const preview = document.getElementById(previewId);
+            const previewImg = document.getElementById(previewId + '_img');
+            if (imageUrl && imageUrl.trim() !== '') {
+                previewImg.src = imageUrl;
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        // 添加商品表单图片预览
+        document.addEventListener('DOMContentLoaded', function() {
+            const addImageInput = document.getElementById('add_image_url');
+            if (addImageInput) {
+                addImageInput.addEventListener('input', function() {
+                    updateImagePreview(this.value.trim(), 'add_image_preview');
+                });
+            }
+
+            // 编辑商品表单图片预览
+            const editImageInput = document.getElementById('edit_image_url');
+            if (editImageInput) {
+                editImageInput.addEventListener('input', function() {
+                    updateImagePreview(this.value.trim(), 'edit_image_preview');
+                });
+            }
+        });
 
         function deleteProduct(id) {
             document.getElementById('delete_id').value = id;

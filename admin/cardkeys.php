@@ -33,10 +33,41 @@ if ($_POST) {
             $messageType = 'danger';
         } else {
             try {
-                $stmt = $pdo->prepare("INSERT INTO shop_card_keys (product_id, card_key, status) VALUES (?, ?, 0)");
-                $stmt->execute([$product_id, $card_key]);
-                $message = '卡密添加成功';
-                $messageType = 'success';
+                // 验证是否为卡密商品
+                $stmt = $pdo->prepare("SELECT product_type FROM shop_products WHERE id = ?");
+                $stmt->execute([$product_id]);
+                $product = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$product) {
+                    $message = '选择的商品不存在';
+                    $messageType = 'danger';
+                } elseif ($product['product_type'] != 2) {
+                    $message = '只能为卡密商品添加卡密';
+                    $messageType = 'danger';
+                } else {
+                    // 检查卡密是否已存在
+                    $stmt = $pdo->prepare("SELECT id FROM shop_card_keys WHERE card_key = ?");
+                    $stmt->execute([$card_key]);
+                    $existing = $stmt->fetch();
+                    
+                    if ($existing) {
+                        $message = '该卡密已存在，请使用其他卡密';
+                        $messageType = 'danger';
+                    } else {
+                        $stmt = $pdo->prepare("INSERT INTO shop_card_keys (product_id, card_key, status) VALUES (?, ?, 0)");
+                        $stmt->execute([$product_id, $card_key]);
+                        $message = '卡密添加成功';
+                        $messageType = 'success';
+                    }
+                }
+            } catch (PDOException $e) {
+                // 捕获唯一约束冲突错误
+                if ($e->getCode() == 23000) {
+                    $message = '该卡密已存在，请使用其他卡密';
+                } else {
+                    $message = '添加失败：' . $e->getMessage();
+                }
+                $messageType = 'danger';
             } catch (Exception $e) {
                 $message = '添加失败：' . $e->getMessage();
                 $messageType = 'danger';
@@ -53,10 +84,28 @@ if ($_POST) {
             $messageType = 'danger';
         } else {
             try {
-                $stmt = $pdo->prepare("UPDATE shop_card_keys SET card_key = ? WHERE id = ?");
+                // 检查卡密是否与其他记录重复（排除当前记录）
+                $stmt = $pdo->prepare("SELECT id FROM shop_card_keys WHERE card_key = ? AND id != ?");
                 $stmt->execute([$card_key, $id]);
-                $message = '卡密更新成功';
-                $messageType = 'success';
+                $existing = $stmt->fetch();
+                
+                if ($existing) {
+                    $message = '该卡密已被其他记录使用，请使用其他卡密';
+                    $messageType = 'danger';
+                } else {
+                    $stmt = $pdo->prepare("UPDATE shop_card_keys SET card_key = ? WHERE id = ?");
+                    $stmt->execute([$card_key, $id]);
+                    $message = '卡密更新成功';
+                    $messageType = 'success';
+                }
+            } catch (PDOException $e) {
+                // 捕获唯一约束冲突错误
+                if ($e->getCode() == 23000) {
+                    $message = '该卡密已被其他记录使用，请使用其他卡密';
+                } else {
+                    $message = '更新失败：' . $e->getMessage();
+                }
+                $messageType = 'danger';
             } catch (Exception $e) {
                 $message = '更新失败：' . $e->getMessage();
                 $messageType = 'danger';
@@ -86,7 +135,8 @@ try {
     $stmt = $pdo->query("SELECT ck.*, p.title as product_title FROM shop_card_keys ck LEFT JOIN shop_products p ON ck.product_id = p.id ORDER BY ck.id DESC");
     $cardkeys = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    $stmt = $pdo->query("SELECT * FROM shop_products ORDER BY title");
+    // 只获取卡密商品（product_type = 2）
+    $stmt = $pdo->query("SELECT * FROM shop_products WHERE product_type = 2 ORDER BY title");
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $message = '获取数据失败：' . $e->getMessage();
@@ -306,11 +356,16 @@ try {
                         <div class="col-md-6 mb-3">
                             <label class="form-label">选择商品</label>
                             <select class="form-select" name="product_id" required>
-                                <option value="">请选择商品</option>
-                                <?php foreach ($products as $product): ?>
-                                    <option value="<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['title']); ?></option>
-                                <?php endforeach; ?>
+                                <option value="">请选择卡密商品</option>
+                                <?php if (empty($products)): ?>
+                                    <option value="" disabled>暂无卡密商品，请先在商品管理中创建卡密商品</option>
+                                <?php else: ?>
+                                    <?php foreach ($products as $product): ?>
+                                        <option value="<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['title']); ?></option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
                             </select>
+                            <small class="form-text text-muted">只显示卡密商品（product_type = 2）</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">卡密内容</label>
