@@ -282,6 +282,14 @@ $admin_avatar = $_SESSION['admin_avatar'] ?? '';
             </li>
             
             <li class="nav-item">
+                <a href="categories.php" class="nav-link <?php echo $current_page === 'categories.php' ? 'active' : ''; ?>">
+                    <i class="bi bi-folder"></i>
+                    <span>分类管理</span>
+                    <div class="nav-indicator"></div>
+                </a>
+            </li>
+            
+            <li class="nav-item">
                 <a href="cardkeys.php" class="nav-link <?php echo $current_page === 'cardkeys.php' ? 'active' : ''; ?>">
                     <i class="bi bi-key"></i>
                     <span>卡密管理</span>
