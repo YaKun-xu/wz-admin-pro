@@ -1,0 +1,11 @@
+# 安装目录访问控制
+# 如果已安装，可以添加以下规则来禁止访问安装目录
+
+# 如果 server/.installed 文件存在，禁止访问安装目录
+# RewriteEngine On
+# RewriteCond %{REQUEST_FILENAME} -f
+# RewriteCond %{DOCUMENT_ROOT}/../server/.installed -f
+# RewriteRule ^(.*)$ - [F,L]
+
+# 注意：安装完成后，建议直接删除或重命名 install 目录
+

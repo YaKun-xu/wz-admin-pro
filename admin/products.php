@@ -31,6 +31,7 @@ if ($_POST) {
         $category_id = intval($_POST['category_id'] ?? 0);
         $product_type = intval($_POST['product_type'] ?? 1); // 默认普通商品
         $status = intval($_POST['status'] ?? 1); // 默认上架
+        $sort_order = intval($_POST['sort_order'] ?? 0); // 排序权重
         $image_url = trim($_POST['image_url'] ?? '');
         
         if (empty($title) || $price <= 0) {
@@ -41,8 +42,8 @@ if ($_POST) {
                 $pdo->beginTransaction();
                 
                 // 插入商品
-                $stmt = $pdo->prepare("INSERT INTO shop_products (title, description, price, category_id, product_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
-                $stmt->execute([$title, $description, $price, $category_id, $product_type, $status]);
+                $stmt = $pdo->prepare("INSERT INTO shop_products (title, description, price, category_id, product_type, status, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$title, $description, $price, $category_id, $product_type, $status, $sort_order]);
                 $product_id = $pdo->lastInsertId();
                 
                 // 如果有图片URL，插入图片
@@ -70,6 +71,7 @@ if ($_POST) {
         $category_id = intval($_POST['category_id'] ?? 0);
         $product_type = intval($_POST['product_type'] ?? 1);
         $status = intval($_POST['status'] ?? 1);
+        $sort_order = intval($_POST['sort_order'] ?? 0); // 排序权重
         $image_url = trim($_POST['image_url'] ?? '');
         
         if (empty($title) || $price <= 0) {
@@ -80,8 +82,8 @@ if ($_POST) {
                 $pdo->beginTransaction();
                 
                 // 更新商品
-                $stmt = $pdo->prepare("UPDATE shop_products SET title = ?, description = ?, price = ?, category_id = ?, product_type = ?, status = ?, updated_at = NOW() WHERE id = ?");
-                $stmt->execute([$title, $description, $price, $category_id, $product_type, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE shop_products SET title = ?, description = ?, price = ?, category_id = ?, product_type = ?, status = ?, sort_order = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$title, $description, $price, $category_id, $product_type, $status, $sort_order, $id]);
                 
                 // 处理图片
                 if (!empty($image_url)) {
@@ -149,6 +151,22 @@ if ($_POST) {
             $messageType = 'danger';
         }
     }
+    
+    if ($action === 'update_sort_order') {
+        $id = intval($_POST['id'] ?? 0);
+        $sort_order = intval($_POST['sort_order'] ?? 0);
+        try {
+            $stmt = $pdo->prepare("UPDATE shop_products SET sort_order = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$sort_order, $id]);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => '排序权重更新成功']);
+            exit;
+        } catch (Exception $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => '更新失败：' . $e->getMessage()]);
+            exit;
+        }
+    }
 }
 
 // 获取商品列表
@@ -183,7 +201,7 @@ try {
                END as product_type_name
         FROM shop_products p 
         LEFT JOIN shop_categories c ON p.category_id = c.id 
-        ORDER BY p.status DESC, p.created_at DESC
+        ORDER BY p.status DESC, p.sort_order ASC, p.created_at DESC
     ");
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
@@ -407,12 +425,12 @@ try {
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>ID</th>
                                 <th>图片</th>
                                 <th>标题</th>
                                 <th>分类</th>
                                 <th>类型</th>
                                 <th>价格</th>
+                                <th>排序权重</th>
                                 <th>状态</th>
                                 <th>描述</th>
                                 <th>创建时间</th>
@@ -422,7 +440,6 @@ try {
                         <tbody>
                             <?php foreach ($products as $product): ?>
                                 <tr>
-                                    <td><?php echo $product['id']; ?></td>
                                     <td>
                                         <?php if (!empty($product['cover_image'])): ?>
                                             <img src="<?php echo htmlspecialchars($product['cover_image']); ?>" 
@@ -445,6 +462,14 @@ try {
                                         <?php endif; ?>
                                     </td>
                                     <td>¥<?php echo number_format($product['price'], 2); ?></td>
+                                    <td>
+                                        <input type="number" 
+                                               class="form-control form-control-sm sort-order-input" 
+                                               style="width: 80px; display: inline-block;"
+                                               value="<?php echo intval($product['sort_order'] ?? 0); ?>" 
+                                               data-id="<?php echo $product['id']; ?>"
+                                               onchange="updateSortOrder(<?php echo $product['id']; ?>, this.value)">
+                                    </td>
                                     <td>
                                         <?php if (($product['status'] ?? 1) == 1): ?>
                                             <span class="badge bg-success" style="cursor: pointer; transition: all 0.3s ease;" 
@@ -535,17 +560,28 @@ try {
                                 </small>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-toggle-on me-1"></i>上架状态 <span class="text-danger">*</span>
-                            </label>
-                            <select class="form-select" name="status" id="add_status" required>
-                                <option value="1" selected>上架</option>
-                                <option value="0">下架</option>
-                            </select>
-                            <small class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>上架后商品将显示在小程序中，下架后用户无法购买
-                            </small>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-toggle-on me-1"></i>上架状态 <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" name="status" id="add_status" required>
+                                    <option value="1" selected>上架</option>
+                                    <option value="0">下架</option>
+                                </select>
+                                <small class="form-text text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>上架后商品将显示在小程序中，下架后用户无法购买
+                                </small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-sort-numeric-down me-1"></i>排序权重
+                                </label>
+                                <input type="number" class="form-control" name="sort_order" id="add_sort_order" value="0" min="0" placeholder="数字越小越靠前">
+                                <small class="form-text text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>数字越小，商品在列表中越靠前显示
+                                </small>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">
@@ -635,17 +671,28 @@ try {
                                 </small>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-toggle-on me-1"></i>上架状态 <span class="text-danger">*</span>
-                            </label>
-                            <select class="form-select" name="status" id="edit_status" required>
-                                <option value="1">上架</option>
-                                <option value="0">下架</option>
-                            </select>
-                            <small class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>上架后商品将显示在小程序中，下架后用户无法购买
-                            </small>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-toggle-on me-1"></i>上架状态 <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" name="status" id="edit_status" required>
+                                    <option value="1">上架</option>
+                                    <option value="0">下架</option>
+                                </select>
+                                <small class="form-text text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>上架后商品将显示在小程序中，下架后用户无法购买
+                                </small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-sort-numeric-down me-1"></i>排序权重
+                                </label>
+                                <input type="number" class="form-control" name="sort_order" id="edit_sort_order" value="0" min="0" placeholder="数字越小越靠前">
+                                <small class="form-text text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>数字越小，商品在列表中越靠前显示
+                                </small>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">
@@ -760,6 +807,7 @@ try {
             document.getElementById('edit_category_id').value = product.category_id;
             document.getElementById('edit_product_type').value = product.product_type || 1;
             document.getElementById('edit_status').value = product.status ?? 1;
+            document.getElementById('edit_sort_order').value = product.sort_order ?? 0;
             document.getElementById('edit_description').value = product.description || '';
             
             // 获取商品图片
@@ -779,6 +827,48 @@ try {
                 });
             
             new bootstrap.Modal(document.getElementById('editModal')).show();
+        }
+        
+        function updateSortOrder(id, sortOrder) {
+            const formData = new FormData();
+            formData.append('action', 'update_sort_order');
+            formData.append('id', id);
+            formData.append('sort_order', sortOrder);
+            
+            fetch('products.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 显示成功提示
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+                    alertDiv.style.zIndex = '9999';
+                    alertDiv.innerHTML = `
+                        <i class="bi bi-check-circle me-2"></i>${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    document.body.appendChild(alertDiv);
+                    
+                    // 3秒后自动移除
+                    setTimeout(() => {
+                        alertDiv.remove();
+                    }, 3000);
+                    
+                    // 刷新页面以更新排序
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
+                } else {
+                    alert('更新失败：' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('更新排序权重失败:', error);
+                alert('更新失败，请重试');
+            });
         }
 
         function previewImage(imageUrl) {

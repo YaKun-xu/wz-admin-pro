@@ -1,6 +1,17 @@
 <?php
 session_start();
-require_once '../server/db_config.php';
+
+// 检查安装状态（但不跳转，允许访问登录页面）
+$installed_file = __DIR__ . '/../server/.installed';
+$db_config_file = __DIR__ . '/../server/db_config.php';
+
+// 如果未安装，显示提示信息
+$not_installed = !file_exists($installed_file) || !file_exists($db_config_file);
+
+// 只有在已安装时才加载数据库配置
+if (!$not_installed) {
+    require_once '../server/db_config.php';
+}
 
 // 处理登出
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
@@ -24,6 +35,8 @@ if ($_POST) {
     
     if (empty($login_name) || empty($password)) {
         $error = '登录账号和密码不能为空';
+    } elseif ($not_installed) {
+        $error = '系统未安装，请先完成安装';
     } else {
         try {
             // 数据库连接
@@ -33,9 +46,18 @@ if ($_POST) {
                 $config['username'],
                 $config['password']
             );
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            
+            // 检查表是否有 status 字段
+            $columns_stmt = $pdo->query("SHOW COLUMNS FROM admin_users LIKE 'status'");
+            $has_status = $columns_stmt->rowCount() > 0;
             
             // 查询管理员（使用 login_name 字段）
-            $sql = "SELECT * FROM admin_users WHERE login_name = ? AND status = 1";
+            if ($has_status) {
+                $sql = "SELECT * FROM admin_users WHERE login_name = ? AND status = 1";
+            } else {
+                $sql = "SELECT * FROM admin_users WHERE login_name = ?";
+            }
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$login_name]);
             $admin = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -51,18 +73,14 @@ if ($_POST) {
             } else {
                 $error = '登录账号或密码错误';
             }
+        } catch (PDOException $e) {
+            // 数据库连接失败
+            error_log("登录数据库错误: " . $e->getMessage());
+            $error = '数据库连接失败，请检查数据库配置';
         } catch (Exception $e) {
-            // 数据库连接失败，使用演示模式
-            if ($login_name === 'admin' && $password === 'admin123') {
-                $_SESSION['admin_logged_in'] = true;
-                $_SESSION['admin_id'] = 1;
-                $_SESSION['admin_username'] = 'admin';
-                
-                header('Location: index.php');
-                exit;
-            } else {
-                $error = '登录账号或密码错误（演示模式）';
-            }
+            // 其他错误
+            error_log("登录错误: " . $e->getMessage());
+            $error = '登录失败，请稍后重试';
         }
     }
 }
@@ -332,10 +350,20 @@ if ($_POST) {
             </button>
         </form>
 
-        <div class="demo-info">
-            <h6><i class="bi bi-info-circle me-2"></i>默认账户</h6>
-            <p>登录账号: admin | 密码: admin123</p>
+        <?php if ($not_installed): ?>
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>系统未安装！</strong>
+            <p class="mb-0 mt-2">
+                请先访问 <a href="../install/" class="alert-link">安装程序</a> 完成系统安装。
+            </p>
         </div>
+        <?php else: ?>
+        <div class="demo-info">
+            <h6><i class="bi bi-info-circle me-2"></i>登录提示</h6>
+            <p>请使用安装时创建的管理员账号登录</p>
+        </div>
+        <?php endif; ?>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>

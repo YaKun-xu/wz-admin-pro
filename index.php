@@ -1,5 +1,9 @@
 <?php
 session_start();
+
+// 检查安装状态
+require_once __DIR__ . '/server/check_install.php';
+checkInstallation();
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">

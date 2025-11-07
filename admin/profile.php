@@ -26,7 +26,8 @@ if ($_POST) {
     if ($action === 'update_profile') {
         $username = trim($_POST['username'] ?? '');
         $login_name = trim($_POST['login_name'] ?? '');
-        $phone = trim($_POST['phone'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $qq = trim($_POST['qq'] ?? '');
         $avatar_url = trim($_POST['avatar_url'] ?? '');
         
         if (empty($username) || empty($login_name)) {
@@ -39,7 +40,7 @@ if ($_POST) {
                 $checkUsernameStmt = $pdo->prepare($checkUsernameSql);
                 $checkUsernameStmt->execute([$username, $_SESSION['admin_id']]);
                 
-                // 检查登录账号是否已被其他管理员使用
+                // 检查登录账号是否已被其他管理员使用（如果login_name字段存在）
                 $checkLoginNameSql = "SELECT id FROM admin_users WHERE login_name = ? AND id != ?";
                 $checkLoginNameStmt = $pdo->prepare($checkLoginNameSql);
                 $checkLoginNameStmt->execute([$login_name, $_SESSION['admin_id']]);
@@ -51,10 +52,10 @@ if ($_POST) {
                     $message = '登录账号已被其他管理员使用';
                     $messageType = 'danger';
                 } else {
-                    // 更新个人信息
-                    $updateSql = "UPDATE admin_users SET username = ?, login_name = ?, phone = ?, avatar_url = ?, updated_at = NOW() WHERE id = ?";
+                    // 更新个人信息（根据实际表结构）
+                    $updateSql = "UPDATE admin_users SET username = ?, login_name = ?, email = ?, qq = ?, avatar_url = ? WHERE id = ?";
                     $updateStmt = $pdo->prepare($updateSql);
-                    $updateStmt->execute([$username, $login_name, $phone, $avatar_url, $_SESSION['admin_id']]);
+                    $updateStmt->execute([$username, $login_name, $email ?: null, $qq ?: null, $avatar_url ?: null, $_SESSION['admin_id']]);
                     
                     // 更新session中的用户名
                     $_SESSION['admin_username'] = $username;
@@ -101,7 +102,7 @@ if ($_POST) {
                 } else {
                     // 更新密码
                     $hashedPassword = password_hash($new_password, PASSWORD_DEFAULT);
-                    $updateSql = "UPDATE admin_users SET password = ?, updated_at = NOW() WHERE id = ?";
+                    $updateSql = "UPDATE admin_users SET password = ? WHERE id = ?";
                     $updateStmt = $pdo->prepare($updateSql);
                     $updateStmt->execute([$hashedPassword, $_SESSION['admin_id']]);
                     
@@ -129,10 +130,9 @@ try {
             'id' => $_SESSION['admin_id'],
             'username' => $_SESSION['admin_username'] ?? 'admin',
             'login_name' => $_SESSION['admin_username'] ?? 'admin',
-            'phone' => '',
-            'avatar_url' => $_SESSION['admin_avatar'] ?? '',
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s')
+            'email' => '',
+            'qq' => '',
+            'avatar_url' => $_SESSION['admin_avatar'] ?? ''
         ];
     }
 } catch (Exception $e) {
@@ -141,10 +141,9 @@ try {
         'id' => $_SESSION['admin_id'],
         'username' => $_SESSION['admin_username'] ?? 'admin',
         'login_name' => $_SESSION['admin_username'] ?? 'admin',
-        'phone' => '',
-        'avatar_url' => $_SESSION['admin_avatar'] ?? '',
-        'created_at' => date('Y-m-d H:i:s'),
-        'updated_at' => date('Y-m-d H:i:s')
+        'email' => '',
+        'qq' => '',
+        'avatar_url' => $_SESSION['admin_avatar'] ?? ''
     ];
 }
 ?>
@@ -519,13 +518,15 @@ try {
                             <div class="profile-role">系统管理员</div>
                             <div class="profile-stats">
                                 <div class="stat-item">
-                                    <div class="stat-number"><?php echo $admin['status'] ? '正常' : '禁用'; ?></div>
+                                    <div class="stat-number">正常</div>
                                     <div class="stat-label">账户状态</div>
                                 </div>
+                                <?php if (!empty($admin['email'])): ?>
                                 <div class="stat-item">
-                                    <div class="stat-number"><?php echo date('Y-m-d', strtotime($admin['created_at'])); ?></div>
-                                    <div class="stat-label">注册时间</div>
+                                    <div class="stat-number" style="font-size: 0.9rem;"><?php echo htmlspecialchars($admin['email']); ?></div>
+                                    <div class="stat-label">邮箱</div>
                                 </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -560,16 +561,26 @@ try {
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <div class="form-floating">
-                                        <input type="tel" class="form-control" id="phone" name="phone" 
-                                               value="<?php echo htmlspecialchars($admin['phone']); ?>">
-                                        <label for="phone">手机号码</label>
+                                        <input type="email" class="form-control" id="email" name="email" 
+                                               value="<?php echo htmlspecialchars($admin['email'] ?? ''); ?>">
+                                        <label for="email">邮箱地址</label>
                                     </div>
                                     <div class="field-description">可选，用于联系和通知</div>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <div class="form-floating">
+                                        <input type="text" class="form-control" id="qq" name="qq" 
+                                               value="<?php echo htmlspecialchars($admin['qq'] ?? ''); ?>">
+                                        <label for="qq">QQ号码</label>
+                                    </div>
+                                    <div class="field-description">可选，用于联系</div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <div class="form-floating">
                                         <input type="url" class="form-control" id="avatar_url" name="avatar_url" 
-                                               value="<?php echo htmlspecialchars($admin['avatar_url']); ?>"
+                                               value="<?php echo htmlspecialchars($admin['avatar_url'] ?? ''); ?>"
                                                placeholder="https://example.com/avatar.jpg">
                                         <label for="avatar_url">头像链接</label>
                                     </div>
