@@ -353,6 +353,12 @@ $admin_avatar = $_SESSION['admin_avatar'] ?? '';
                         </a>
                     </li>
                     <li>
+                        <a href="product_images.php" class="submenu-link <?php echo $current_page === 'product_images.php' ? 'active' : ''; ?>">
+                            <i class="bi bi-images"></i>
+                            <span>商品图片</span>
+                        </a>
+                    </li>
+                    <li>
                         <a href="categories.php" class="submenu-link <?php echo $current_page === 'categories.php' ? 'active' : ''; ?>">
                             <i class="bi bi-folder"></i>
                             <span>商品分类</span>

@@ -41,9 +41,9 @@ if ($_POST) {
             try {
                 $pdo->beginTransaction();
                 
-                // 插入商品
-                $stmt = $pdo->prepare("INSERT INTO shop_products (title, description, price, category_id, product_type, status, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
-                $stmt->execute([$title, $description, $price, $category_id, $product_type, $status, $sort_order]);
+                // 插入商品（同时设置封面图片）
+                $stmt = $pdo->prepare("INSERT INTO shop_products (title, description, price, category_id, product_type, status, sort_order, cover_image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$title, $description, $price, $category_id, $product_type, $status, $sort_order, $image_url]);
                 $product_id = $pdo->lastInsertId();
                 
                 // 如果有图片URL，插入图片
@@ -81,9 +81,9 @@ if ($_POST) {
             try {
                 $pdo->beginTransaction();
                 
-                // 更新商品
-                $stmt = $pdo->prepare("UPDATE shop_products SET title = ?, description = ?, price = ?, category_id = ?, product_type = ?, status = ?, sort_order = ?, updated_at = NOW() WHERE id = ?");
-                $stmt->execute([$title, $description, $price, $category_id, $product_type, $status, $sort_order, $id]);
+                // 更新商品（同时更新封面图片）
+                $stmt = $pdo->prepare("UPDATE shop_products SET title = ?, description = ?, price = ?, category_id = ?, product_type = ?, status = ?, sort_order = ?, cover_image = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$title, $description, $price, $category_id, $product_type, $status, $sort_order, $image_url, $id]);
                 
                 // 处理图片
                 if (!empty($image_url)) {
@@ -190,10 +190,40 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_image') {
     }
 }
 
+// 处理获取商品图片列表请求
+if (isset($_GET['action']) && $_GET['action'] === 'get_product_images') {
+    $id = intval($_GET['id'] ?? 0);
+    try {
+        $stmt = $pdo->prepare("SELECT id, image_url, sort_order FROM shop_product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC");
+        $stmt->execute([$id]);
+        $images = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true, 'images' => $images]);
+        exit;
+    } catch (Exception $e) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'images' => [], 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// 分页参数
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$limit = 20; // 每页显示数量
+$offset = ($page - 1) * $limit;
+
 try {
-    $stmt = $pdo->query("
+    // 获取总数
+    $countSql = "SELECT COUNT(*) FROM shop_products p LEFT JOIN shop_categories c ON p.category_id = c.id";
+    $countStmt = $pdo->query($countSql);
+    $totalProducts = $countStmt->fetchColumn();
+    $totalPages = ceil($totalProducts / $limit);
+    
+    // 获取分页数据
+    $stmt = $pdo->prepare("
         SELECT p.*, c.name as category_name, 
-               (SELECT image_url FROM shop_product_images WHERE product_id = p.id ORDER BY sort_order ASC LIMIT 1) as cover_image,
+               (SELECT image_url FROM shop_product_images WHERE product_id = p.id AND sort_order = 0 LIMIT 1) as main_image,
+               p.cover_image,
                CASE p.product_type 
                    WHEN 1 THEN '普通商品' 
                    WHEN 2 THEN '卡密商品' 
@@ -202,7 +232,9 @@ try {
         FROM shop_products p 
         LEFT JOIN shop_categories c ON p.category_id = c.id 
         ORDER BY p.status DESC, p.sort_order ASC, p.created_at DESC
+        LIMIT ? OFFSET ?
     ");
+    $stmt->execute([$limit, $offset]);
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     $stmt = $pdo->query("SELECT * FROM shop_categories ORDER BY name");
@@ -210,6 +242,8 @@ try {
 } catch (Exception $e) {
     $message = '获取数据失败：' . $e->getMessage();
     $messageType = 'danger';
+    $totalProducts = 0;
+    $totalPages = 1;
 }
 ?>
 <!DOCTYPE html>
@@ -381,6 +415,29 @@ try {
             border-radius: 8px;
         }
 
+        .pagination {
+            justify-content: center;
+        }
+
+        .page-link {
+            border-radius: 10px;
+            margin: 0 2px;
+            border: none;
+            color: #667eea;
+            padding: 0.5rem 1rem;
+        }
+
+        .page-link:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .page-item.active .page-link {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+        }
+
         /* 响应式设计 */
         @media (max-width: 768px) {
             .main-content-wrapper {
@@ -425,7 +482,8 @@ try {
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>图片</th>
+                                <th>主图</th>
+                                <th>封面</th>
                                 <th>标题</th>
                                 <th>分类</th>
                                 <th>类型</th>
@@ -441,13 +499,25 @@ try {
                             <?php foreach ($products as $product): ?>
                                 <tr>
                                     <td>
+                                        <?php if (!empty($product['main_image'])): ?>
+                                            <img src="<?php echo htmlspecialchars($product['main_image']); ?>" 
+                                                 alt="主图" 
+                                                 style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; cursor: pointer;"
+                                                 onclick="previewImage('<?php echo htmlspecialchars($product['main_image']); ?>')"
+                                                 title="主图">
+                                        <?php else: ?>
+                                            <span class="text-muted" style="font-size: 0.85rem;">无主图</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
                                         <?php if (!empty($product['cover_image'])): ?>
                                             <img src="<?php echo htmlspecialchars($product['cover_image']); ?>" 
-                                                 alt="商品图片" 
+                                                 alt="封面" 
                                                  style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; cursor: pointer;"
-                                                 onclick="previewImage('<?php echo htmlspecialchars($product['cover_image']); ?>')">
+                                                 onclick="previewImage('<?php echo htmlspecialchars($product['cover_image']); ?>')"
+                                                 title="封面">
                                         <?php else: ?>
-                                            <span class="text-muted">无图片</span>
+                                            <span class="text-muted" style="font-size: 0.85rem;">无封面</span>
                                         <?php endif; ?>
                                     </td>
                                     <td><?php echo htmlspecialchars($product['title']); ?></td>
@@ -504,6 +574,44 @@ try {
                         </tbody>
                     </table>
                 </div>
+                
+                <!-- 分页 -->
+                <?php if ($totalPages > 1): ?>
+                <nav aria-label="商品分页" class="mt-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted">
+                            共 <?php echo $totalProducts; ?> 条记录，第 <?php echo $page; ?> / <?php echo $totalPages; ?> 页
+                        </div>
+                        <ul class="pagination mb-0">
+                            <?php if ($page > 1): ?>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=<?php echo $page - 1; ?>">
+                                        <i class="bi bi-chevron-left"></i> 上一页
+                                    </a>
+                                </li>
+                            <?php endif; ?>
+                            
+                            <?php 
+                            $startPage = max(1, $page - 2);
+                            $endPage = min($totalPages, $page + 2);
+                            for ($i = $startPage; $i <= $endPage; $i++): 
+                            ?>
+                                <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
+                                    <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                                </li>
+                            <?php endfor; ?>
+                            
+                            <?php if ($page < $totalPages): ?>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=<?php echo $page + 1; ?>">
+                                        下一页 <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            <?php endif; ?>
+                        </ul>
+                    </div>
+                </nav>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -702,18 +810,48 @@ try {
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-image me-1"></i>商品图片URL
+                                <i class="bi bi-image me-1"></i>封面图片URL
                             </label>
-                            <input type="url" class="form-control" name="image_url" id="edit_image_url" placeholder="https://example.com/image.jpg">
+                            <div class="input-group">
+                                <input type="url" class="form-control" name="image_url" id="edit_image_url" placeholder="https://example.com/image.jpg">
+                                <button type="button" class="btn btn-outline-secondary" onclick="loadProductImages()" title="从商品图片中选择">
+                                    <i class="bi bi-images"></i> 选择图片
+                                </button>
+                            </div>
                             <small class="form-text text-muted">
-                                <i class="bi bi-link-45deg me-1"></i>请输入图片的完整URL地址
+                                <i class="bi bi-link-45deg me-1"></i>封面图片用于商品列表展示，请输入图片的完整URL地址
                             </small>
                             <div id="edit_image_preview" class="mt-3" style="display: none;">
                                 <div class="border rounded p-3" style="background: #f8f9fa;">
-                                    <p class="mb-2 text-muted small">图片预览：</p>
+                                    <p class="mb-2 text-muted small">封面图片预览：</p>
                                     <img id="edit_image_preview_img" src="" alt="预览" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 1px solid #dee2e6;">
                                 </div>
                             </div>
+                        </div>
+                        
+                        <!-- 商品图片管理区域 -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-bold mb-0">
+                                    <i class="bi bi-images me-1"></i>商品图片管理
+                                </label>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadProductImages()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                                    </button>
+                                    <a href="product_images.php?product_id=" id="edit_manage_images_link" class="btn btn-sm btn-outline-info" target="_blank">
+                                        <i class="bi bi-gear me-1"></i>管理图片
+                                    </a>
+                                </div>
+                            </div>
+                            <div id="edit_product_images_list" class="border rounded p-3" style="background: #f8f9fa; min-height: 100px;">
+                                <div class="text-center text-muted py-3">
+                                    <i class="bi bi-hourglass-split me-2"></i>加载中...
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>主图：sort_order = 0 的图片 | 封面：商品表的 cover_image 字段
+                            </small>
                         </div>
                     </div>
                     <div class="modal-footer" style="border-top: 1px solid #e9ecef; padding: 1.5rem 2rem; border-radius: 0 0 20px 20px;">
@@ -810,23 +948,142 @@ try {
             document.getElementById('edit_sort_order').value = product.sort_order ?? 0;
             document.getElementById('edit_description').value = product.description || '';
             
-            // 获取商品图片
-            fetch('products.php?action=get_image&id=' + product.id)
+            // 直接使用封面图片
+            if (product.cover_image) {
+                document.getElementById('edit_image_url').value = product.cover_image;
+                updateImagePreview(product.cover_image, 'edit_image_preview');
+            } else {
+                document.getElementById('edit_image_url').value = '';
+                document.getElementById('edit_image_preview').style.display = 'none';
+            }
+            
+            // 更新管理图片链接
+            const manageLink = document.getElementById('edit_manage_images_link');
+            if (manageLink) {
+                manageLink.href = 'product_images.php?product_id=' + product.id;
+            }
+            
+            // 加载商品图片列表
+            loadProductImages();
+            
+            new bootstrap.Modal(document.getElementById('editModal')).show();
+        }
+        
+        function loadProductImages() {
+            const productId = document.getElementById('edit_id').value;
+            if (!productId) {
+                document.getElementById('edit_product_images_list').innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-exclamation-circle me-2"></i>请先选择商品</div>';
+                return;
+            }
+            
+            const imagesList = document.getElementById('edit_product_images_list');
+            imagesList.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-hourglass-split me-2"></i>加载中...</div>';
+            
+            fetch('products.php?action=get_product_images&id=' + productId)
                 .then(response => response.json())
                 .then(data => {
-                    if (data.image_url) {
-                        document.getElementById('edit_image_url').value = data.image_url;
-                        updateImagePreview(data.image_url, 'edit_image_preview');
+                    if (data.success && data.images && data.images.length > 0) {
+                        let html = '<div class="row g-2">';
+                        data.images.forEach((img, index) => {
+                            const isMain = img.sort_order == 0;
+                            html += `
+                                <div class="col-6 col-md-4 col-lg-3">
+                                    <div class="card position-relative" style="border: ${isMain ? '2px solid #28a745' : '1px solid #dee2e6'};">
+                                        ${isMain ? '<span class="badge bg-success position-absolute top-0 start-0 m-1">主图</span>' : ''}
+                                        <img src="${img.image_url}" class="card-img-top" style="height: 120px; object-fit: cover; cursor: pointer;" 
+                                             onclick="previewImage('${img.image_url}')" 
+                                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\'%3E%3Crect fill=\'%23ddd\' width=\'100\' height=\'100\'/%3E%3Ctext fill=\'%23999\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3E图片加载失败%3C/text%3E%3C/svg%3E'">
+                                        <div class="card-body p-2">
+                                            <div class="btn-group w-100" role="group">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                        onclick="setAsCover('${img.image_url}')" 
+                                                        title="设为封面">
+                                                    <i class="bi bi-image"></i>
+                                                </button>
+                                                ${!isMain ? `<button type="button" class="btn btn-sm btn-outline-success" 
+                                                        onclick="setAsMain(${img.id}, ${productId})" 
+                                                        title="设为主图">
+                                                    <i class="bi bi-star"></i>
+                                                </button>` : ''}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                        imagesList.innerHTML = html;
                     } else {
-                        document.getElementById('edit_image_url').value = '';
-                        document.getElementById('edit_image_preview').style.display = 'none';
+                        imagesList.innerHTML = `
+                            <div class="text-center text-muted py-3">
+                                <i class="bi bi-image me-2"></i>暂无图片
+                                <br>
+                                <small><a href="product_images.php?product_id=${productId}" target="_blank" class="text-decoration-none">点击添加图片</a></small>
+                            </div>
+                        `;
                     }
                 })
                 .catch(error => {
-                    console.error('获取图片失败:', error);
+                    console.error('加载图片失败:', error);
+                    imagesList.innerHTML = '<div class="text-center text-danger py-3"><i class="bi bi-exclamation-triangle me-2"></i>加载失败，请刷新重试</div>';
                 });
+        }
+        
+        function setAsCover(imageUrl) {
+            document.getElementById('edit_image_url').value = imageUrl;
+            updateImagePreview(imageUrl, 'edit_image_preview');
+            // 显示提示
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+            alertDiv.style.zIndex = '9999';
+            alertDiv.innerHTML = `
+                <i class="bi bi-check-circle me-2"></i>已选择为封面图片，请点击"保存修改"按钮保存
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(alertDiv);
+            setTimeout(() => alertDiv.remove(), 3000);
+        }
+        
+        function setAsMain(imageId, productId) {
+            if (!confirm('确定要将此图片设为主图吗？')) {
+                return;
+            }
             
-            new bootstrap.Modal(document.getElementById('editModal')).show();
+            const formData = new FormData();
+            formData.append('action', 'set_main');
+            formData.append('id', imageId);
+            formData.append('product_id', productId);
+            
+            fetch('product_images.php', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 重新加载图片列表
+                    loadProductImages();
+                    // 显示成功提示
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+                    alertDiv.style.zIndex = '9999';
+                    alertDiv.innerHTML = `
+                        <i class="bi bi-check-circle me-2"></i>${data.message || '主图设置成功'}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    document.body.appendChild(alertDiv);
+                    setTimeout(() => alertDiv.remove(), 3000);
+                } else {
+                    alert('设置失败：' + (data.message || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('设置主图失败:', error);
+                alert('设置失败，请重试');
+            });
         }
         
         function updateSortOrder(id, sortOrder) {

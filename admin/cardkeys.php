@@ -178,12 +178,67 @@ if ($_POST) {
     }
 }
 
+// 获取筛选条件
+$filter_product_id = isset($_GET['product_id']) ? intval($_GET['product_id']) : 0;
+$filter_status = isset($_GET['status']) ? intval($_GET['status']) : -1; // -1表示全部，0未使用，1已使用
+$search_keyword = isset($_GET['keyword']) ? trim($_GET['keyword']) : '';
+
+// 分页参数
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$limit = 20; // 每页显示数量
+$offset = ($page - 1) * $limit;
+
 // 获取卡密列表
 $cardkeys = [];
 $products = [];
+$totalCardkeys = 0;
+$totalPages = 1;
 
 try {
-    $stmt = $pdo->query("SELECT ck.*, p.title as product_title FROM shop_card_keys ck LEFT JOIN shop_products p ON ck.product_id = p.id ORDER BY ck.id DESC");
+    // 构建查询条件
+    $whereConditions = [];
+    $queryParams = [];
+    
+    // 商品筛选
+    if ($filter_product_id > 0) {
+        $whereConditions[] = "ck.product_id = ?";
+        $queryParams[] = $filter_product_id;
+    }
+    
+    // 状态筛选
+    if ($filter_status >= 0) {
+        $whereConditions[] = "ck.status = ?";
+        $queryParams[] = $filter_status;
+    }
+    
+    // 关键词搜索（搜索卡密内容）
+    if (!empty($search_keyword)) {
+        $whereConditions[] = "ck.card_key LIKE ?";
+        $queryParams[] = '%' . $search_keyword . '%';
+    }
+    
+    // 构建WHERE子句
+    $whereClause = !empty($whereConditions) ? 'WHERE ' . implode(' AND ', $whereConditions) : '';
+    
+    // 获取总数
+    $countSql = "SELECT COUNT(*) FROM shop_card_keys ck LEFT JOIN shop_products p ON ck.product_id = p.id {$whereClause}";
+    $countStmt = $pdo->prepare($countSql);
+    $countStmt->execute($queryParams);
+    $totalCardkeys = $countStmt->fetchColumn();
+    $totalPages = ceil($totalCardkeys / $limit);
+    
+    // 执行查询（分页）
+    $sql = "SELECT ck.*, p.title as product_title 
+            FROM shop_card_keys ck 
+            LEFT JOIN shop_products p ON ck.product_id = p.id 
+            {$whereClause}
+            ORDER BY ck.id DESC
+            LIMIT ? OFFSET ?";
+    
+    $queryParams[] = $limit;
+    $queryParams[] = $offset;
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($queryParams);
     $cardkeys = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // 只获取卡密商品（product_type = 2）
@@ -366,6 +421,29 @@ try {
             color: #991b1b;
         }
 
+        .pagination {
+            justify-content: center;
+        }
+
+        .page-link {
+            border-radius: 10px;
+            margin: 0 2px;
+            border: none;
+            color: #667eea;
+            padding: 0.5rem 1rem;
+        }
+
+        .page-link:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .page-item.active .page-link {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+        }
+
         /* 响应式设计 */
         @media (max-width: 768px) {
             .main-content-wrapper {
@@ -396,11 +474,71 @@ try {
                 </div>
             <?php endif; ?>
 
+            <!-- 筛选和搜索 -->
+            <div class="content-card">
+                <h3 class="mb-3">
+                    <i class="bi bi-funnel me-2"></i>筛选和搜索
+                </h3>
+                <form method="GET" id="filterForm" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-box-seam me-1"></i>商品筛选
+                        </label>
+                        <select class="form-select" name="product_id" id="filter_product_id">
+                            <option value="0">全部商品</option>
+                            <?php foreach ($products as $product): ?>
+                                <option value="<?php echo $product['id']; ?>" <?php echo $filter_product_id == $product['id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($product['title']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-toggle-on me-1"></i>状态筛选
+                        </label>
+                        <select class="form-select" name="status" id="filter_status">
+                            <option value="-1" <?php echo $filter_status == -1 ? 'selected' : ''; ?>>全部状态</option>
+                            <option value="0" <?php echo $filter_status == 0 ? 'selected' : ''; ?>>未使用</option>
+                            <option value="1" <?php echo $filter_status == 1 ? 'selected' : ''; ?>>已使用</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-search me-1"></i>搜索卡密
+                        </label>
+                        <input type="text" class="form-control" name="keyword" id="search_keyword" 
+                               value="<?php echo htmlspecialchars($search_keyword); ?>" 
+                               placeholder="输入卡密内容进行搜索">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <div class="w-100">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-search me-2"></i>搜索
+                            </button>
+                        </div>
+                    </div>
+                    <?php if ($filter_product_id > 0 || $filter_status >= 0 || !empty($search_keyword)): ?>
+                    <div class="col-12">
+                        <a href="cardkeys.php" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-x-circle me-1"></i>清除筛选
+                        </a>
+                        <span class="text-muted ms-2">
+                            <i class="bi bi-info-circle me-1"></i>当前筛选：共 <?php echo $totalCardkeys; ?> 条记录
+                        </span>
+                    </div>
+                    <?php endif; ?>
+                </form>
+            </div>
+
             <!-- 卡密列表 -->
             <div class="content-card">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h3 class="mb-0">
                         <i class="bi bi-list-ul me-2"></i>卡密列表
+                        <?php if ($filter_product_id > 0 || $filter_status >= 0 || !empty($search_keyword)): ?>
+                            <small class="text-muted">(已筛选)</small>
+                        <?php endif; ?>
                     </h3>
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
                         <i class="bi bi-plus-circle me-2"></i>添加卡密
@@ -418,13 +556,30 @@ try {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($cardkeys as $cardkey): ?>
+                            <?php if (empty($cardkeys)): ?>
                                 <tr>
-                                    <td><?php echo $cardkey['id']; ?></td>
-                                    <td><?php echo htmlspecialchars($cardkey['product_title'] ?? '未知商品'); ?></td>
-                                    <td>
-                                        <code><?php echo htmlspecialchars($cardkey['card_key']); ?></code>
+                                    <td colspan="5" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox me-2"></i>暂无数据
+                                        <?php if ($filter_product_id > 0 || $filter_status >= 0 || !empty($search_keyword)): ?>
+                                            <br><small>请尝试调整筛选条件</small>
+                                        <?php endif; ?>
                                     </td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($cardkeys as $cardkey): ?>
+                                    <tr>
+                                        <td><?php echo $cardkey['id']; ?></td>
+                                        <td><?php echo htmlspecialchars($cardkey['product_title'] ?? '未知商品'); ?></td>
+                                        <td>
+                                            <code><?php 
+                                                $card_key_display = htmlspecialchars($cardkey['card_key']);
+                                                // 如果有关键词搜索，高亮显示
+                                                if (!empty($search_keyword)) {
+                                                    $card_key_display = str_ireplace($search_keyword, '<mark>' . htmlspecialchars($search_keyword) . '</mark>', $card_key_display);
+                                                }
+                                                echo $card_key_display;
+                                            ?></code>
+                                        </td>
                                     <td>
                                         <span class="status-badge <?php echo $cardkey['status'] ? 'status-used' : 'status-unused'; ?>">
                                             <?php echo $cardkey['status'] ? '已使用' : '未使用'; ?>
@@ -439,10 +594,58 @@ try {
                                         </button>
                                     </td>
                                 </tr>
-                            <?php endforeach; ?>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
+                
+                <!-- 分页 -->
+                <?php if ($totalPages > 1): ?>
+                <nav aria-label="卡密分页" class="mt-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted">
+                            共 <?php echo $totalCardkeys; ?> 条记录，第 <?php echo $page; ?> / <?php echo $totalPages; ?> 页
+                        </div>
+                        <ul class="pagination mb-0">
+                            <?php 
+                            // 构建查询参数字符串
+                            $queryParams = [];
+                            if ($filter_product_id > 0) $queryParams['product_id'] = $filter_product_id;
+                            if ($filter_status >= 0) $queryParams['status'] = $filter_status;
+                            if (!empty($search_keyword)) $queryParams['keyword'] = $search_keyword;
+                            $queryString = !empty($queryParams) ? '&' . http_build_query($queryParams) : '';
+                            ?>
+                            
+                            <?php if ($page > 1): ?>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=<?php echo $page - 1; ?><?php echo $queryString; ?>">
+                                        <i class="bi bi-chevron-left"></i> 上一页
+                                    </a>
+                                </li>
+                            <?php endif; ?>
+                            
+                            <?php 
+                            $startPage = max(1, $page - 2);
+                            $endPage = min($totalPages, $page + 2);
+                            for ($i = $startPage; $i <= $endPage; $i++): 
+                            ?>
+                                <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
+                                    <a class="page-link" href="?page=<?php echo $i; ?><?php echo $queryString; ?>"><?php echo $i; ?></a>
+                                </li>
+                            <?php endfor; ?>
+                            
+                            <?php if ($page < $totalPages): ?>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=<?php echo $page + 1; ?><?php echo $queryString; ?>">
+                                        下一页 <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            <?php endif; ?>
+                        </ul>
+                    </div>
+                </nav>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -593,6 +796,31 @@ try {
                 bsAlert.close();
             });
         }, 5000);
+
+        // 搜索框支持回车键搜索
+        const searchKeyword = document.getElementById('search_keyword');
+        if (searchKeyword) {
+            searchKeyword.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('filterForm').submit();
+                }
+            });
+        }
+
+        // 筛选条件改变时自动提交（可选，如果不需要可以注释掉）
+        // const filterProduct = document.getElementById('filter_product_id');
+        // const filterStatus = document.getElementById('filter_status');
+        // if (filterProduct) {
+        //     filterProduct.addEventListener('change', function() {
+        //         document.getElementById('filterForm').submit();
+        //     });
+        // }
+        // if (filterStatus) {
+        //     filterStatus.addEventListener('change', function() {
+        //         document.getElementById('filterForm').submit();
+        //     });
+        // }
     </script>
 </body>
 </html>
