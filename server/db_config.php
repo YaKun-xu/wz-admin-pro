@@ -3,8 +3,8 @@ return [
     'host' => 'localhost',
     'port' => 3306,
     'database' => 'zhanli',
-    'username' => 'root',
-    'password' => '',
+    'username' => 'zhanli',
+    'password' => 'zhanli',
     'charset' => 'utf8mb4',
     'options' => [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

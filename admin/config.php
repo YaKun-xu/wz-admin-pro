@@ -107,6 +107,11 @@ $page_definitions = [
         'name' => '通用配置',
         'icon' => 'bi-tools',
         'description' => '通用服务配置'
+    ],
+    'rename' => [
+        'name' => '改名页面',
+        'icon' => 'bi-pencil-square',
+        'description' => '改名服务页面配置'
     ]
 ];
 
@@ -129,7 +134,8 @@ $field_definitions = [
     'index_videoAdunit' => ['label' => '首页配置 - 视频广告单元', 'type' => 'text', 'help' => '视频广告单元ID'],
     
     'index_wxAdEnabled' => ['label' => '首页配置 - 广告开关', 'type' => 'select', 'options' => ['false' => '关闭', 'true' => '开启'], 'help' => '查询是否启用强制广告'],
-    'index_dyAdEnabled' => ['label' => '首页配置 - 抖音广告开关', 'type' => 'select', 'options' => ['false' => '关闭', 'true' => '开启'], 'help' => '暂无开发'],
+    'index_qykefu' => ['label' => '首页配置 - 企业客服开关', 'type' => 'select', 'options' => ['0' => '关闭', '1' => '开启'], 'help' => '企业客服功能开关'],
+    'index_dyAdEnabled_adConfig' => ['label' => '首页配置 - 抖音广告开关', 'type' => 'select', 'options' => ['false' => '关闭', 'true' => '开启'], 'help' => '抖音广告开关'],
     
     // ===========================================
     // zhanli - 战力查询页面配置
@@ -137,26 +143,19 @@ $field_definitions = [
     // swiperList.0 相关字段
     'zhanli_type_swiperList_0' => ['label' => '战力查询 - 轮播图类型(第1项)', 'type' => 'select', 'options' => ['link' => '图片', 'ad' => '广告'], 'help' => '轮播图第一项的内容类型', 'readonly' => true, 'fixed_value' => 'link'],
     'zhanli_image_swiperList_0' => ['label' => '战力查询 - 轮播图图片(第1项)', 'type' => 'url', 'help' => '轮播图第一项的图片地址'],
-
     'zhanli_appId_swiperList_0' => ['label' => '战力查询 - 轮播图小程序AppID(第1项)', 'type' => 'text', 'help' => '轮播图第一项的小程序AppID'],
     'zhanli_path_swiperList_0' => ['label' => '战力查询 - 轮播图页面路径(第1项)', 'type' => 'text', 'help' => '轮播图第一项的页面路径'],
-
-    'zhanli_weburl' => ['label' => '战力查询 - 网页链接', 'type' => 'url', 'help' => '外部网页链接'],
     'zhanli_target_swiperList_0' => ['label' => '战力查询 - 轮播图跳转目标(第1项)', 'type' => 'select', 'options' => ['miniProgram' => '小程序', 'h5' => 'H5页面'], 'help' => '轮播图第一项的跳转目标'],
 
     // swiperList.1 相关字段
     'zhanli_type_swiperList_1' => ['label' => '战力查询 - 轮播图类型(第2项)', 'type' => 'select', 'options' => ['link' => '链接', 'ad' => '广告'], 'help' => '轮播图第二项的内容类型', 'readonly' => true, 'fixed_value' => 'ad'],
     'zhanli_swiperAdId_adInfo' => ['label' => '战力查询 - 轮播广告ID', 'type' => 'text', 'help' => '轮播广告单元ID'],
 
-
-    'zhanli_ddappId' => ['label' => '战力查询 - 联系客服小程序ID', 'type' => 'text', 'help' => '暂无开发'],
-    'zhanli_ddpath' => ['label' => '战力查询 - 联系客服路径', 'type' => 'text', 'help' => '暂无开发'],
-
-
+    'zhanli_weburl' => ['label' => '战力查询 - 网页链接', 'type' => 'url', 'help' => '外部网页链接'],
     'zhanli_qrcodeImage' => ['label' => '战力查询 - 客服二维码', 'type' => 'url', 'help' => '联系客服按钮'],
     'zhanli_switch' => ['label' => '战力查询 - 模式切换', 'type' => 'select', 'options' => ['0' => '客服模式', '1' => '小程序模式'], 'help' => '联系客服按钮功能'],
-
-
+    'zhanli_ddappId' => ['label' => '战力查询 - 联系客服小程序ID', 'type' => 'text', 'help' => '联系客服小程序AppID'],
+    'zhanli_ddpath' => ['label' => '战力查询 - 联系客服路径', 'type' => 'text', 'help' => '联系客服小程序页面路径'],
     'zhanli_weidianId_miniProgram' => ['label' => '战力查询 - 改战区小程序ID', 'type' => 'text', 'help' => '改战区按钮跳转'],
     'zhanli_weidianUrl_miniProgram' => ['label' => '战力查询 - 改战区小程序路径', 'type' => 'text', 'help' => '改战区按钮跳转'],
 
@@ -170,11 +169,13 @@ $field_definitions = [
     'my_nickname_userInfo' => ['label' => '个人中心 - 昵称', 'type' => 'text', 'help' => '未登录用户默认昵称'],
     'my_userId_userInfo' => ['label' => '个人中心 - 用户ID', 'type' => 'text', 'help' => '未登录用户默认ID'],
     'my_qrcodeImage' => ['label' => '个人中心 - 客服二维码', 'type' => 'url', 'help' => '客服二维码地址'],
+    'my_qykefu' => ['label' => '个人中心 - 企业客服开关', 'type' => 'select', 'options' => ['0' => '关闭', '1' => '开启'], 'help' => '企业客服功能开关'],
+    'my_gzhewm' => ['label' => '个人中心 - 公众号二维码', 'type' => 'url', 'help' => '公众号二维码图片'],
 
+    'my_path_config_about' => ['label' => '个人中心 - 关于我们路径', 'type' => 'text', 'help' => '个人版小程序需要填写'],
     'my_appId_config_miniProgram' => ['label' => '个人中心 - 商城小程序AppID', 'type' => 'text', 'help' => '个人版小程序需要填写'],
     'my_buyPath_config_miniProgram' => ['label' => '个人中心 - 商城商品页面路径', 'type' => 'text', 'help' => '购买页面路径'],
     'my_orderPath_config_miniProgram' => ['label' => '个人中心 - 商城订单页面路径', 'type' => 'text', 'help' => '订单页面路径'],
-    'my_gzhewm' => ['label' => '个人中心 - 公众号二维码', 'type' => 'url', 'help' => '公众号二维码图片'],
 
     'my_buyUrl_config_h5' => ['label' => '个人中心 - h5购买链接', 'type' => 'url', 'help' => 'H5购买页面链接'],
     'my_orderUrl_config_h5' => ['label' => '个人中心 - h5订单链接', 'type' => 'url', 'help' => 'H5订单页面链接'],
@@ -184,21 +185,20 @@ $field_definitions = [
 
     
     'my_nativeAdunit' => ['label' => '个人中心 - 原生广告单元', 'type' => 'text', 'help' => '原生广告单元ID'],
-    'my_path_config_about' => ['label' => '个人中心 - 关于我们路径', 'type' => 'text', 'help' => '个人版小程序需要填写'],
     
     // ===========================================
     // about - 关于页面配置
     // ===========================================
-    'about_wechat' => ['label' => '关于页面 - 微信号', 'type' => 'text', 'help' => '客服微信号'],
-    'about_publicAccount' => ['label' => '关于页面 - 公众号', 'type' => 'text', 'help' => '公众号名称'],
-    'about_templateId' => ['label' => '关于页面 - 广告ID', 'type' => 'text', 'help' => '广告模板ID'],
+    'about_wechat_contactInfo' => ['label' => '关于页面 - 微信号', 'type' => 'text', 'help' => '客服微信号'],
+    'about_publicAccount_contactInfo' => ['label' => '关于页面 - 公众号', 'type' => 'text', 'help' => '公众号名称'],
+    'about_templateId_adInfo' => ['label' => '关于页面 - 广告ID', 'type' => 'text', 'help' => '广告模板ID'],
     
     // ===========================================
     // settings - 设置页面配置
     // ===========================================
-    'settings_avatar' => ['label' => '设置页面 - 头像', 'type' => 'url', 'help' => '用户头像地址'],
-    'settings_nickname' => ['label' => '设置页面 - 昵称', 'type' => 'text', 'help' => '用户昵称'],
-    'settings_unitId' => ['label' => '设置页面 - 广告单元ID', 'type' => 'text', 'help' => '广告单元标识'],
+    'settings_avatar_userInfo' => ['label' => '设置页面 - 头像', 'type' => 'url', 'help' => '用户头像地址'],
+    'settings_nickname_userInfo' => ['label' => '设置页面 - 昵称', 'type' => 'text', 'help' => '用户昵称'],
+    'settings_unitId_adInfo' => ['label' => '设置页面 - 广告单元ID', 'type' => 'text', 'help' => '广告单元标识'],
     
     // ===========================================
     // order - 订单页面配置
@@ -208,8 +208,19 @@ $field_definitions = [
     // ===========================================
     // tongyong - 通用配置
     // ===========================================
-    'tongyong_workTime' => ['label' => '通用配置 - 工作时间', 'type' => 'text', 'help' => '客服工作时间'],
-    'tongyong_remark' => ['label' => '通用配置 - 备注说明', 'type' => 'text', 'help' => '服务备注说明'],
+    'tongyong_workTime_serviceInfo' => ['label' => '通用配置 - 工作时间', 'type' => 'text', 'help' => '客服工作时间'],
+    'tongyong_remark_serviceInfo' => ['label' => '通用配置 - 备注说明', 'type' => 'text', 'help' => '服务备注说明'],
+    
+    // ===========================================
+    // rename - 改名页面配置
+    // ===========================================
+    'rename_notice' => ['label' => '改名页面 - 公告内容', 'type' => 'textarea', 'help' => '改名服务公告内容'],
+    'rename_appId_shop' => ['label' => '改名页面 - 小程序AppID', 'type' => 'text', 'help' => '改名小程序AppID'],
+    'rename_path_shop' => ['label' => '改名页面 - 页面路径', 'type' => 'text', 'help' => '改名小程序页面路径'],
+    'rename_text1_text_0' => ['label' => '改名页面 - 文本1', 'type' => 'text', 'help' => '第一项说明文本'],
+    'rename_text2_text_1' => ['label' => '改名页面 - 文本2', 'type' => 'text', 'help' => '第二项说明文本'],
+    'rename_text3_text_2' => ['label' => '改名页面 - 文本3', 'type' => 'text', 'help' => '第三项说明文本'],
+    'rename_text4_text_3' => ['label' => '改名页面 - 文本4', 'type' => 'text', 'help' => '第四项说明文本'],
 ];
 ?>
 <!DOCTYPE html>

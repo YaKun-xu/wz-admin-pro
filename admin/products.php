@@ -39,24 +39,14 @@ if ($_POST) {
             $messageType = 'danger';
         } else {
             try {
-                $pdo->beginTransaction();
-                
-                // 插入商品（同时设置封面图片）
+                // 插入商品（只设置封面图片，不自动插入到商品图片表）
                 $stmt = $pdo->prepare("INSERT INTO shop_products (title, description, price, category_id, product_type, status, sort_order, cover_image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
                 $stmt->execute([$title, $description, $price, $category_id, $product_type, $status, $sort_order, $image_url]);
                 $product_id = $pdo->lastInsertId();
                 
-                // 如果有图片URL，插入图片
-                if (!empty($image_url)) {
-                    $stmt = $pdo->prepare("INSERT INTO shop_product_images (product_id, image_url, sort_order, created_at) VALUES (?, ?, 0, NOW())");
-                    $stmt->execute([$product_id, $image_url]);
-                }
-                
-                $pdo->commit();
                 $message = '商品添加成功';
                 $messageType = 'success';
             } catch (Exception $e) {
-                $pdo->rollBack();
                 $message = '添加失败：' . $e->getMessage();
                 $messageType = 'danger';
             }
@@ -79,35 +69,13 @@ if ($_POST) {
             $messageType = 'danger';
         } else {
             try {
-                $pdo->beginTransaction();
-                
-                // 更新商品（同时更新封面图片）
+                // 更新商品（只更新封面图片，不自动更新商品图片表）
                 $stmt = $pdo->prepare("UPDATE shop_products SET title = ?, description = ?, price = ?, category_id = ?, product_type = ?, status = ?, sort_order = ?, cover_image = ?, updated_at = NOW() WHERE id = ?");
                 $stmt->execute([$title, $description, $price, $category_id, $product_type, $status, $sort_order, $image_url, $id]);
                 
-                // 处理图片
-                if (!empty($image_url)) {
-                    // 检查是否已有图片
-                    $stmt = $pdo->prepare("SELECT id FROM shop_product_images WHERE product_id = ? LIMIT 1");
-                    $stmt->execute([$id]);
-                    $existing_image = $stmt->fetch();
-                    
-                    if ($existing_image) {
-                        // 更新现有图片
-                        $stmt = $pdo->prepare("UPDATE shop_product_images SET image_url = ? WHERE id = ?");
-                        $stmt->execute([$image_url, $existing_image['id']]);
-                    } else {
-                        // 插入新图片
-                        $stmt = $pdo->prepare("INSERT INTO shop_product_images (product_id, image_url, sort_order, created_at) VALUES (?, ?, 0, NOW())");
-                        $stmt->execute([$id, $image_url]);
-                    }
-                }
-                
-                $pdo->commit();
                 $message = '商品更新成功';
                 $messageType = 'success';
             } catch (Exception $e) {
-                $pdo->rollBack();
                 $message = '更新失败：' . $e->getMessage();
                 $messageType = 'danger';
             }
@@ -699,15 +667,15 @@ try {
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-image me-1"></i>商品图片URL
+                                <i class="bi bi-image me-1"></i>封面图片URL
                             </label>
                             <input type="url" class="form-control" name="image_url" id="add_image_url" placeholder="https://example.com/image.jpg">
                             <small class="form-text text-muted">
-                                <i class="bi bi-link-45deg me-1"></i>请输入图片的完整URL地址
+                                <i class="bi bi-link-45deg me-1"></i>封面图片用于商品列表展示，请输入图片的完整URL地址。主图请在商品添加后通过"商品图片管理"功能单独设置。
                             </small>
                             <div id="add_image_preview" class="mt-3" style="display: none;">
                                 <div class="border rounded p-3" style="background: #f8f9fa;">
-                                    <p class="mb-2 text-muted small">图片预览：</p>
+                                    <p class="mb-2 text-muted small">封面图片预览：</p>
                                     <img id="add_image_preview_img" src="" alt="预览" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 1px solid #dee2e6;">
                                 </div>
                             </div>
@@ -850,7 +818,7 @@ try {
                                 </div>
                             </div>
                             <small class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>主图：sort_order = 0 的图片 | 封面：商品表的 cover_image 字段
+                                <i class="bi bi-info-circle me-1"></i>主图：商品图片表中 sort_order = 0 的图片（通过"商品图片管理"功能设置） | 封面：商品表的 cover_image 字段（通过上方"封面图片URL"设置）。主图和封面是独立的，可以分别设置。
                             </small>
                         </div>
                     </div>
