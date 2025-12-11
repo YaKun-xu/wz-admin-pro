@@ -1,10 +1,6 @@
 <?php
 session_start();
 
-// 检查安装状态
-require_once '../server/check_install.php';
-checkInstallation();
-
 require_once '../server/db_config.php';
 
 // 检查登录状态

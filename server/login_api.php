@@ -8,17 +8,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-// 检查安装状态
-$installed_file = __DIR__ . '/.installed';
-if (!file_exists($installed_file)) {
-    echo json_encode([
-        'code' => 503,
-        'message' => '系统未安装，请先完成安装',
-        'data' => null
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
 require_once 'db_config.php';
 
 class LoginAPI {

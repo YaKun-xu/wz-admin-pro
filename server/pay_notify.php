@@ -4,14 +4,6 @@
  * 微信支付回调处理
  */
 
-// 检查安装状态
-$installed_file = __DIR__ . '/.installed';
-if (!file_exists($installed_file)) {
-    http_response_code(503);
-    echo '系统未安装';
-    exit;
-}
-
 require_once 'db_config.php';
 
 header('Content-Type: text/xml; charset=utf-8');
