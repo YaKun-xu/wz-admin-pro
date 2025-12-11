@@ -18,117 +18,164 @@ $pdo = new PDO(
 );
 
 // 处理保存配置
-if ($_POST && isset($_POST['save_config'])) {
+$success = null;
+$error = null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['config'])) {
     try {
         $pdo->beginTransaction();
         $updated_count = 0;
         
-        // 使用ID来更新，确保唯一性
-        if (isset($_POST['config_ids']) && is_array($_POST['config_ids'])) {
-            foreach ($_POST['config_ids'] as $id => $form_name) {
-                if (isset($_POST['config'][$form_name])) {
-                    $value = trim($_POST['config'][$form_name]);
-                    $id = (int)$id; // 确保ID是整数，防止SQL注入
-                    
-                    // 验证ID是否存在
-                    $check_stmt = $pdo->prepare("SELECT id FROM configs WHERE id = ?");
-                    $check_stmt->execute([$id]);
-                    if ($check_stmt->fetch()) {
-                        $stmt = $pdo->prepare("UPDATE configs SET config_value = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-                        $stmt->execute([$value, $id]);
+        foreach ($_POST['config'] as $key => $value) {
+            // 解析配置键，格式：page_name.config_key 或 page_name.config_key.parent_key
+            // 注意：parent_key可能包含点号（如swiperList.0），需要合并所有剩余部分
+            $parts = explode('.', $key);
+            if (count($parts) >= 2) {
+                $page_name = $parts[0];
+                $config_key = $parts[1];
+                $parent_key = null;
+                
+                // 如果有第三部分，说明有parent_key，需要合并所有剩余部分
+                if (count($parts) >= 3) {
+                    $parent_key = implode('.', array_slice($parts, 2));
+                }
+                
+                $value = trim($value);
+                
+                // 更新配置，根据是否有parent_key来区分
+                if ($parent_key !== null) {
+                    $stmt = $pdo->prepare("UPDATE configs SET config_value = ?, updated_at = CURRENT_TIMESTAMP WHERE page_name = ? AND config_key = ? AND parent_key = ?");
+                    if ($stmt->execute([$value, $page_name, $config_key, $parent_key])) {
+                        $updated_count++;
+                    }
+                } else {
+                    $stmt = $pdo->prepare("UPDATE configs SET config_value = ?, updated_at = CURRENT_TIMESTAMP WHERE page_name = ? AND config_key = ? AND (parent_key IS NULL OR parent_key = '')");
+                    if ($stmt->execute([$value, $page_name, $config_key])) {
                         $updated_count++;
                     }
                 }
             }
         }
         
+        if ($updated_count === 0) {
+            throw new Exception('没有配置项被更新');
+        }
+        
         $pdo->commit();
         $success = "配置保存成功！共更新 {$updated_count} 项配置。";
+        
+        // 保存成功后，重新获取配置数据以显示最新值
+        $stmt = $pdo->query("SELECT * FROM configs ORDER BY id ASC");
+        $configs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $page_configs = [];
+        foreach ($configs as $config) {
+            $page_name = $config['page_name'];
+            // 修正拼写错误
+            if (strtolower($page_name) === 'idnex') {
+                $page_name = 'index';
+            }
+            $page_configs[$page_name][] = $config;
+        }
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         $error = '保存失败：' . htmlspecialchars($e->getMessage());
     }
 }
 
-// 获取配置数据
-$configs = [];
-$page_configs = [];
-
-try {
-    // 按ID排序
-    $stmt = $pdo->query("SELECT * FROM configs ORDER BY id ASC");
-    $configs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// 获取配置数据（如果保存时已经获取过，则不再重复获取）
+if (!isset($configs) || empty($configs)) {
+    $configs = [];
+    $page_configs = [];
     
-    // 按页面分组，保持ID顺序
-    // 自动修正拼写错误：将 'idnex' 合并到 'index'
-    foreach ($configs as $config) {
-        $page_name = $config['page_name'];
-        // 修正拼写错误
-        if (strtolower($page_name) === 'idnex') {
-            $page_name = 'index';
+    try {
+        // 按ID排序
+        $stmt = $pdo->query("SELECT * FROM configs ORDER BY id ASC");
+        $configs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // 按页面分组，保持ID顺序
+        // 自动修正拼写错误：将 'idnex' 合并到 'index'
+        foreach ($configs as $config) {
+            $page_name = $config['page_name'];
+            // 修正拼写错误
+            if (strtolower($page_name) === 'idnex') {
+                $page_name = 'index';
+            }
+            $page_configs[$page_name][] = $config;
         }
-        $page_configs[$page_name][] = $config;
+    } catch (Exception $e) {
+        if (!isset($error)) {
+            $error = '获取配置失败：' . $e->getMessage();
+        }
     }
-} catch (Exception $e) {
-    $error = '获取配置失败：' . $e->getMessage();
 }
 
-// 页面配置定义 - 从数据库动态获取，但保持分类默认配置
-$page_definitions = [];
-
-// 页面分类默认配置（保持不变）
-$default_page_config = [
-    'index' => ['name' => '首页配置', 'icon' => 'bi-house', 'description' => '小程序首页相关配置'],
-    'zhanli' => ['name' => '战力查询', 'icon' => 'bi-search', 'description' => '战力查询页面配置'],
-    'my' => ['name' => '个人中心', 'icon' => 'bi-person', 'description' => '个人中心页面配置'],
-    'about' => ['name' => '关于页面', 'icon' => 'bi-info-circle', 'description' => '关于我们页面配置'],
-    'settings' => ['name' => '设置页面', 'icon' => 'bi-gear', 'description' => '设置页面配置'],
-    'order' => ['name' => '订单页面', 'icon' => 'bi-receipt', 'description' => '订单相关配置'],
-    'tongyong' => ['name' => '通用配置', 'icon' => 'bi-tools', 'description' => '通用服务配置'],
-    'rename' => ['name' => '改名页面', 'icon' => 'bi-pencil-square', 'description' => '改名服务页面配置']
+// 页面配置定义 - 基于实际数据
+$page_definitions = [
+    'index' => [
+        'name' => '首页配置',
+        'icon' => 'bi-house',
+        'description' => '小程序首页相关配置'
+    ],
+    'zhanli' => [
+        'name' => '战力查询',
+        'icon' => 'bi-search',
+        'description' => '战力查询页面配置'
+    ],
+    'my' => [
+        'name' => '个人中心',
+        'icon' => 'bi-person',
+        'description' => '个人中心页面配置'
+    ],
+    'about' => [
+        'name' => '关于页面',
+        'icon' => 'bi-info-circle',
+        'description' => '关于我们页面配置'
+    ],
+    'settings' => [
+        'name' => '设置页面',
+        'icon' => 'bi-gear',
+        'description' => '设置页面配置'
+    ],
+    'order' => [
+        'name' => '订单页面',
+        'icon' => 'bi-receipt',
+        'description' => '订单相关配置'
+    ],
+    'tongyong' => [
+        'name' => '通用配置',
+        'icon' => 'bi-tools',
+        'description' => '通用服务配置'
+    ],
+    'rename' => [
+        'name' => '改名页面',
+        'icon' => 'bi-pencil-square',
+        'description' => '改名服务页面配置'
+    ]
 ];
 
-// 从配置数据中获取所有页面（确保所有有数据的页面都能显示）
-$all_page_names = array_keys($page_configs);
-
-// 为每个有配置数据的页面设置定义
-foreach ($all_page_names as $page_name) {
-    $page_definitions[$page_name] = $default_page_config[$page_name] ?? [
-        'name' => $page_name,
-        'icon' => 'bi-gear',
-        'description' => ''
-    ];
-}
-
 // 智能判断字段类型的函数
-function detectFieldType($config_item) {
+function detectFieldType($config_item, $page_name = '') {
     $config_key = strtolower($config_item['config_key']);
     $config_value = $config_item['config_value'];
     $notes = $config_item['notes'] ?? '';
-    $page_name = $config_item['page_name'] ?? '';
     
-    // 0. 特殊字段处理：switch 字段（联系客服按钮）
+    // 特殊字段处理：switch 字段（联系客服按钮）
     if ($config_key === 'switch') {
         if ($page_name === 'zhanli') {
             // 战力查询：0=图片, 1=小程序, 2=小程序客服, 3=企业微信客服
             return [
                 'type' => 'select',
-                'options' => [
-                    '0' => '图片',
-                    '1' => '小程序',
-                    '2' => '小程序客服',
-                    '3' => '企业微信客服'
-                ]
+                'options' => ['0' => '图片', '1' => '小程序', '2' => '小程序客服', '3' => '企业微信客服'],
+                'label' => $config_item['notes'] ?? '联系客服按钮'
             ];
         } elseif ($page_name === 'my') {
             // 个人中心：0=图片, 1=小程序客服, 2=企业微信客服
             return [
                 'type' => 'select',
-                'options' => [
-                    '0' => '图片',
-                    '1' => '小程序客服',
-                    '2' => '企业微信客服'
-                ]
+                'options' => ['0' => '图片', '1' => '小程序客服', '2' => '企业微信客服'],
+                'label' => $config_item['notes'] ?? '联系客服按钮'
             ];
         }
     }
@@ -136,19 +183,14 @@ function detectFieldType($config_item) {
     // 1. 检查 notes 中是否包含类型定义（格式：类型:select|选项:0:关闭,1:开启）
     $type_pos = strpos($notes, '类型:');
     if ($type_pos !== false) {
-        $type_str = substr($notes, $type_pos + 3); // 跳过 "类型:"
+        $type_str = substr($notes, $type_pos + 3);
         $type_end = strpos($type_str, '|');
-        if ($type_end !== false) {
-            $type = trim(substr($type_str, 0, $type_end));
-        } else {
-            $type = trim($type_str);
-        }
+        $type = $type_end !== false ? trim(substr($type_str, 0, $type_end)) : trim($type_str);
         
         $options = [];
-        // 解析选项
         $opt_pos = strpos($notes, '选项:');
         if ($opt_pos !== false) {
-            $opt_str = substr($notes, $opt_pos + 3); // 跳过 "选项:"
+            $opt_str = substr($notes, $opt_pos + 3);
             $opt_end = strpos($opt_str, '|');
             if ($opt_end !== false) {
                 $opt_str = substr($opt_str, 0, $opt_end);
@@ -163,19 +205,20 @@ function detectFieldType($config_item) {
         }
         
         if ($type === 'select' && !empty($options)) {
-            return ['type' => 'select', 'options' => $options];
+            return [
+                'type' => 'select',
+                'options' => $options,
+                'label' => $notes
+            ];
         }
     }
     
     // 2. 检查 notes 中是否包含选项格式（如：0/1/2/3  图片/小程序/原生客服/企业微信）
-    // 检查是否包含 "数字/数字" 的格式
     $parts = explode(' ', $notes);
     if (count($parts) >= 2) {
         $first_part = trim($parts[0]);
-        // 检查第一部分是否是数字/数字的格式
         if (strpos($first_part, '/') !== false && is_numeric(str_replace('/', '', $first_part))) {
             $values = explode('/', $first_part);
-            // 检查是否都是数字
             $all_numeric = true;
             foreach ($values as $v) {
                 if (!is_numeric(trim($v))) {
@@ -186,35 +229,25 @@ function detectFieldType($config_item) {
             
             if ($all_numeric && count($values) >= 2) {
                 $labels_str = implode(' ', array_slice($parts, 1));
+                $labels = strpos($labels_str, '/') !== false ? explode('/', $labels_str) : explode(' ', str_replace('  ', ' ', $labels_str));
+                $labels = array_values(array_filter(array_map('trim', $labels)));
                 
-                // 尝试用斜杠分割标签
-                if (strpos($labels_str, '/') !== false) {
-                    $labels = explode('/', $labels_str);
-                } else {
-                    // 用多个空格分割
-                    $labels = [];
-                    $temp = str_replace('  ', ' ', $labels_str); // 替换多个空格为单个
-                    $labels = explode(' ', $temp);
-                }
-                
-                // 清理空白字符
-                $labels = array_map('trim', $labels);
-                $labels = array_filter($labels); // 移除空元素
-                $labels = array_values($labels); // 重新索引
-                
-                // 确保值和标签数量匹配
                 if (count($values) === count($labels)) {
                     $options = [];
                     foreach ($values as $idx => $val) {
                         $options[trim($val)] = $labels[$idx];
                     }
-                    return ['type' => 'select', 'options' => $options];
+                    return [
+                        'type' => 'select',
+                        'options' => $options,
+                        'label' => $notes
+                    ];
                 }
             }
         }
     }
     
-    // 3. 根据 config_value 的值判断是否为 select（仅保留 true/false 等布尔值判断）
+    // 3. 根据 config_value 的值判断是否为 select（布尔值判断）
     if (in_array($config_value, ['true', 'false', '0', '1', 'yes', 'no', 'on', 'off'])) {
         $options = [];
         if (in_array($config_value, ['true', 'false'])) {
@@ -227,13 +260,115 @@ function detectFieldType($config_item) {
             $options = ['off' => '关闭', 'on' => '开启'];
         }
         if (!empty($options)) {
-            return ['type' => 'select', 'options' => $options];
+            return [
+                'type' => 'select',
+                'options' => $options,
+                'label' => $config_item['notes'] ?? $config_item['config_key']
+            ];
         }
     }
     
     // 4. 默认返回 text
-    return ['type' => 'text'];
+    return [
+        'type' => 'text',
+        'label' => $config_item['notes'] ?? $config_item['config_key'],
+        'help' => ''
+    ];
 }
+
+// 配置字段定义 - 基于实际数据
+// ===========================================
+// 按页面分类，方便查找和维护
+// ===========================================
+
+// 配置字段定义 - 基于数据库实际数据，label使用数据库的notes字段
+$field_definitions = [
+    // ===========================================
+    // index - 首页配置
+    // ===========================================
+    'index_kefu' => ['type' => 'select', 'options' => ['false' => '关闭', 'true' => '开启']],
+    'index_jump' => ['type' => 'select', 'options' => ['false' => '关闭', 'true' => '开启']],
+    'index_noticeContent' => ['type' => 'textarea'],
+    'index_qrcodeImage' => ['type' => 'url'],
+    'index_appId' => ['type' => 'text'],
+    'index_path' => ['type' => 'text'],
+    'index_rewardedVideoAd' => ['type' => 'text'],
+    'index_videoAdunit' => ['type' => 'text'],
+    'index_wxAdEnabled' => ['type' => 'select', 'options' => ['false' => '关闭', 'true' => '开启']],
+    'index_dyAdEnabled_adConfig' => ['type' => 'select', 'options' => ['false' => '关闭', 'true' => '开启']],
+    
+    // ===========================================
+    // zhanli - 战力查询页面配置
+    // ===========================================
+    'zhanli_weidianId_miniProgram' => ['type' => 'text'],
+    'zhanli_weidianUrl_miniProgram' => ['type' => 'text'],
+    'zhanli_weburl' => ['type' => 'url'],
+    'zhanli_switch' => ['type' => 'select', 'options' => ['0' => '图片', '1' => '小程序', '2' => '小程序客服', '3' => '企业微信客服']],
+    'zhanli_qrcodeImage' => ['type' => 'url'],
+    'zhanli_ddappId' => ['type' => 'text'],
+    'zhanli_ddpath' => ['type' => 'text'],
+    'zhanli_qywxid' => ['type' => 'text'],
+    'zhanli_qykfurl' => ['type' => 'url'],
+    'zhanli_bottomAdId_adInfo' => ['type' => 'text'],
+    'zhanli_interstitialAdUnitId_adInfo' => ['type' => 'text'],
+    
+    // ===========================================
+    // my - 个人中心页面配置
+    // ===========================================
+    'my_switch' => ['type' => 'select', 'options' => ['0' => '图片', '1' => '小程序客服', '2' => '企业微信客服']],
+    'my_qrcodeImage' => ['type' => 'url'],
+    'my_qywxid' => ['type' => 'text'],
+    'my_qykfurl' => ['type' => 'url'],
+    'my_gzhewm' => ['type' => 'url'],
+    'my_avatar_userInfo' => ['type' => 'url'],
+    'my_nickname_userInfo' => ['type' => 'text'],
+    'my_userId_userInfo' => ['type' => 'text'],
+    'my_appId_config_miniProgram' => ['type' => 'text'],
+    'my_orderPath_config_miniProgram' => ['type' => 'text'],
+    'my_buyPath_config_miniProgram' => ['type' => 'text'],
+    'my_ddappId_config_miniProgram' => ['type' => 'text'],
+    'my_ddpath_config_miniProgram' => ['type' => 'text'],
+    'my_orderUrl_config_h5' => ['type' => 'url'],
+    'my_buyUrl_config_h5' => ['type' => 'url'],
+    'my_path_config_about' => ['type' => 'text'],
+    'my_nativeAdunit' => ['type' => 'text'],
+    
+    // ===========================================
+    // about - 关于页面配置
+    // ===========================================
+    'about_wechat_contactInfo' => ['type' => 'text'],
+    'about_publicAccount_contactInfo' => ['type' => 'text'],
+    'about_templateId_adInfo' => ['type' => 'text'],
+    
+    // ===========================================
+    // settings - 设置页面配置
+    // ===========================================
+    'settings_avatar_userInfo' => ['type' => 'url'],
+    'settings_nickname_userInfo' => ['type' => 'text'],
+    'settings_unitId_adInfo' => ['type' => 'text'],
+    
+    // ===========================================
+    // order - 订单页面配置
+    // ===========================================
+    'order_videoTutorialUrl' => ['type' => 'url'],
+    
+    // ===========================================
+    // tongyong - 通用配置
+    // ===========================================
+    'tongyong_workTime_serviceInfo' => ['type' => 'text'],
+    'tongyong_remark_serviceInfo' => ['type' => 'text'],
+    
+    // ===========================================
+    // rename - 改名页面配置
+    // ===========================================
+    'rename_notice' => ['type' => 'textarea'],
+    'rename_appId_shop' => ['type' => 'text'],
+    'rename_path_shop' => ['type' => 'text'],
+    'rename_text1_text_0' => ['type' => 'text'],
+    'rename_text2_text_1' => ['type' => 'text'],
+    'rename_text3_text_2' => ['type' => 'text'],
+    'rename_text4_text_3' => ['type' => 'text'],
+];
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -465,20 +600,6 @@ function detectFieldType($config_item) {
             border-radius: 10px;
             padding: 1rem;
             border-left: 4px solid #667eea;
-            transition: all 0.3s ease;
-        }
-        
-        .config-item:hover {
-            background: #e9ecef;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-        
-        .config-item .config-key {
-            font-size: 0.75rem;
-            color: #6c757d;
-            font-family: monospace;
-            margin-top: 0.25rem;
         }
 
         .config-item .form-label {
@@ -556,8 +677,7 @@ function detectFieldType($config_item) {
                                     data-bs-toggle="pill" 
                                     data-bs-target="#<?php echo $page_key; ?>" 
                                     type="button" 
-                                    role="tab"
-                                    data-page-key="<?php echo htmlspecialchars($page_key); ?>">
+                                    role="tab">
                                 <i class="<?php echo $page_info['icon']; ?> me-2"></i>
                                 <?php echo $page_info['name']; ?>
                                 <span class="badge bg-secondary ms-2"><?php echo count($page_configs[$page_key] ?? []); ?></span>
@@ -585,22 +705,37 @@ function detectFieldType($config_item) {
                                     
                                     <div class="config-grid">
                                         <?php 
-                                        // 获取当前页面的配置，已经按ID排序
+                                        // 直接使用从数据库获取的数据，已经按ID排序
                                         $page_configs_data = $page_configs[$page_key] ?? [];
                                         
                                         foreach ($page_configs_data as $config_item): 
-                                            // 使用notes作为显示名称，如果没有notes则使用config_key
-                                            $display_label = !empty($config_item['notes']) ? $config_item['notes'] : $config_item['config_key'];
+                                            // 构建带页面前缀的键名来查找字段定义
+                                            // 如果有parent_key，也包含在键名中以便区分相同字段名的不同实例
+                                            $field_key = $page_key . '_' . $config_item['config_key'];
+                                            if (!empty($config_item['parent_key'])) {
+                                                // 将parent_key中的点号替换为下划线，避免键名冲突
+                                                $parent_suffix = str_replace('.', '_', $config_item['parent_key']);
+                                                $field_key_with_parent = $field_key . '_' . $parent_suffix;
+                                                // 先尝试带parent_key的键名
+                                                if (isset($field_definitions[$field_key_with_parent])) {
+                                                    $field_key = $field_key_with_parent;
+                                                }
+                                            }
                                             
-                                            // 智能判断字段类型（完全基于数据库）
-                                            $field_def = detectFieldType($config_item);
+                                            // 如果字段定义中存在，使用定义；否则自动判断
+                                            if (isset($field_definitions[$field_key])) {
+                                                $field_def = $field_definitions[$field_key];
+                                            } else {
+                                                // 自动判断字段类型和选项
+                                                $field_def = detectFieldType($config_item, $page_key);
+                                            }
+                                            
+                                            // 使用数据库的notes作为显示名称，如果没有notes则使用config_key
+                                            $display_label = !empty($config_item['notes']) ? $config_item['notes'] : $config_item['config_key'];
                                         ?>
                                             <div class="config-item">
                                                 <label class="form-label">
                                                     <?php echo htmlspecialchars($display_label); ?>
-                                                    <?php if (!empty($config_item['config_key'])): ?>
-                                                        <span class="config-key d-block">键名: <?php echo htmlspecialchars($config_item['config_key']); ?></span>
-                                                    <?php endif; ?>
                                                 </label>
                                                 
                                                 <?php 
@@ -609,31 +744,47 @@ function detectFieldType($config_item) {
                                                 if (!empty($config_item['parent_key'])) {
                                                     $form_name .= '.' . $config_item['parent_key'];
                                                 }
-                                                // 使用ID作为唯一标识
-                                                $config_id = $config_item['id'];
                                                 ?>
-                                                <!-- 隐藏字段：保存ID和表单名的映射 -->
-                                                <input type="hidden" name="config_ids[<?php echo $config_id; ?>]" value="<?php echo htmlspecialchars($form_name); ?>">
-                                                
-                                                <?php if ($field_def['type'] === 'select' && !empty($field_def['options'])): ?>
+                                                <?php if ($field_def['type'] === 'select'): ?>
+                                                    <?php 
+                                                    $is_readonly = isset($field_def['readonly']) && $field_def['readonly'] === true;
+                                                    $fixed_value = $field_def['fixed_value'] ?? null;
+                                                    ?>
                                                     <select class="form-select" 
-                                                            name="config[<?php echo htmlspecialchars($form_name); ?>]">
+                                                            name="config[<?php echo htmlspecialchars($form_name); ?>]"
+                                                            <?php if ($is_readonly): ?>disabled title="此字段已固定为<?php echo htmlspecialchars($fixed_value ?? '指定值'); ?>，不可修改"<?php endif; ?>>
                                                         <?php foreach ($field_def['options'] as $value => $label): ?>
-                                                            <option value="<?php echo htmlspecialchars($value); ?>" 
-                                                                    <?php echo $config_item['config_value'] == $value ? 'selected' : ''; ?>>
-                                                                <?php echo htmlspecialchars($label); ?>
+                                                            <option value="<?php echo $value; ?>" 
+                                                                    <?php 
+                                                                    if ($is_readonly && $fixed_value !== null) {
+                                                                        echo $value == $fixed_value ? 'selected' : '';
+                                                                    } else {
+                                                                        echo $config_item['config_value'] == $value ? 'selected' : '';
+                                                                    }
+                                                                    ?>>
+                                                                <?php echo $label; ?>
                                                             </option>
                                                         <?php endforeach; ?>
                                                     </select>
+                                                    <?php if ($is_readonly && $fixed_value !== null): ?>
+                                                        <input type="hidden" name="config[<?php echo htmlspecialchars($form_name); ?>]" value="<?php echo htmlspecialchars($fixed_value); ?>">
+                                                        <div class="form-text text-muted">
+                                                            <i class="bi bi-lock-fill"></i> 此字段已固定为 <?php echo htmlspecialchars($field_def['options'][$fixed_value] ?? $fixed_value); ?>，不可修改
+                                                        </div>
+                                                    <?php endif; ?>
                                                 <?php elseif ($field_def['type'] === 'textarea'): ?>
                                                     <textarea class="form-control" 
                                                               name="config[<?php echo htmlspecialchars($form_name); ?>]"
                                                               rows="3"><?php echo htmlspecialchars($config_item['config_value']); ?></textarea>
                                                 <?php else: ?>
-                                                    <input type="<?php echo htmlspecialchars($field_def['type']); ?>" 
+                                                    <input type="<?php echo $field_def['type']; ?>" 
                                                            class="form-control" 
                                                            name="config[<?php echo htmlspecialchars($form_name); ?>]"
                                                            value="<?php echo htmlspecialchars($config_item['config_value']); ?>">
+                                                <?php endif; ?>
+                                                
+                                                <?php if ($field_def['help']): ?>
+                                                    <div class="form-text"><?php echo $field_def['help']; ?></div>
                                                 <?php endif; ?>
                                             </div>
                                         <?php endforeach; ?>
@@ -645,7 +796,10 @@ function detectFieldType($config_item) {
 
                     <!-- 提交按钮 -->
                     <div class="text-end mt-4">
-                        <button type="submit" name="save_config" class="btn btn-primary" id="saveBtn">
+                        <button type="button" class="btn btn-secondary me-2" onclick="resetForm()">
+                            <i class="bi bi-arrow-clockwise me-2"></i>重置
+                        </button>
+                        <button type="submit" class="btn btn-primary">
                             <i class="bi bi-check-lg me-2"></i>保存配置
                         </button>
                     </div>
@@ -656,12 +810,11 @@ function detectFieldType($config_item) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 表单提交确认
-        document.getElementById('configForm').addEventListener('submit', function(e) {
-            const saveBtn = document.getElementById('saveBtn');
-            saveBtn.disabled = true;
-            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
-        });
+        function resetForm() {
+            if (confirm('确定要重置所有配置吗？')) {
+                location.reload();
+            }
+        }
 
         // 标签页切换动画
         const tabButtons = document.querySelectorAll('[data-bs-toggle="pill"]');
@@ -676,25 +829,6 @@ function detectFieldType($config_item) {
                     targetPane.style.opacity = '1';
                     targetPane.style.transform = 'translateY(0)';
                 }, 50);
-                
-            });
-        });
-        
-        // 页面加载完成后初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            // 检查是否有未保存的更改（可选功能）
-            const form = document.getElementById('configForm');
-            let formChanged = false;
-            
-            form.addEventListener('change', function() {
-                formChanged = true;
-            });
-            
-            window.addEventListener('beforeunload', function(e) {
-                if (formChanged) {
-                    e.preventDefault();
-                    e.returnValue = '您有未保存的更改，确定要离开吗？';
-                }
             });
         });
     </script>

@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-require_once '../server/db_config.php';
+    require_once '../server/db_config.php';
 
 // 处理登出
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {

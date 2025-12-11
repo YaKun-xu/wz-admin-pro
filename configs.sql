@@ -5,13 +5,13 @@
  Source Server Type    : MySQL
  Source Server Version : 50744 (5.7.44)
  Source Host           : localhost:3306
- Source Schema         : zhanli
+ Source Schema         : zhanliair
 
  Target Server Type    : MySQL
  Target Server Version : 50744 (5.7.44)
  File Encoding         : 65001
 
- Date: 11/12/2025 10:36:56
+ Date: 11/12/2025 11:20:18
 */
 
 SET NAMES utf8mb4;
@@ -53,7 +53,7 @@ INSERT INTO `configs` (`id`, `page_name`, `config_key`, `config_value`, `parent_
 INSERT INTO `configs` (`id`, `page_name`, `config_key`, `config_value`, `parent_key`, `notes`, `created_at`, `updated_at`) VALUES (201, 'zhanli', 'weidianId', 'wx4d1258677af59f5c', 'miniProgram', '小程序ID', '2025-07-20 01:16:54', '2025-12-11 06:29:07');
 INSERT INTO `configs` (`id`, `page_name`, `config_key`, `config_value`, `parent_key`, `notes`, `created_at`, `updated_at`) VALUES (202, 'zhanli', 'weidianUrl', 'lib/item/dist/pages/index/index?scene=7500647739', 'miniProgram', '小程序路径', '2025-07-20 01:16:54', '2025-12-11 07:08:56');
 INSERT INTO `configs` (`id`, `page_name`, `config_key`, `config_value`, `parent_key`, `notes`, `created_at`, `updated_at`) VALUES (212, 'zhanli', 'weburl', 'https://shop.lll666.cn/', NULL, NULL, '2025-07-20 01:16:54', '2025-12-11 06:29:07');
-INSERT INTO `configs` (`id`, `page_name`, `config_key`, `config_value`, `parent_key`, `notes`, `created_at`, `updated_at`) VALUES (222, 'zhanli', 'switch', '3', NULL, '联系客服按钮', '2025-07-20 01:16:54', '2025-12-11 10:34:02');
+INSERT INTO `configs` (`id`, `page_name`, `config_key`, `config_value`, `parent_key`, `notes`, `created_at`, `updated_at`) VALUES (222, 'zhanli', 'switch', '3', NULL, '联系客服按钮', '2025-07-20 01:16:54', '2025-12-11 10:34:10');
 INSERT INTO `configs` (`id`, `page_name`, `config_key`, `config_value`, `parent_key`, `notes`, `created_at`, `updated_at`) VALUES (223, 'zhanli', 'qrcodeImage', 'https://picture.zhaixingge.net/v/690e05d7daaa6.png', NULL, '客服二维码', '2025-07-20 01:16:54', '2025-12-11 06:29:07');
 INSERT INTO `configs` (`id`, `page_name`, `config_key`, `config_value`, `parent_key`, `notes`, `created_at`, `updated_at`) VALUES (224, 'zhanli', 'ddappId', 'wx4d1258677af59f5c', NULL, '客服小程序跳转appid', '2025-07-20 01:16:54', '2025-12-11 06:29:07');
 INSERT INTO `configs` (`id`, `page_name`, `config_key`, `config_value`, `parent_key`, `notes`, `created_at`, `updated_at`) VALUES (225, 'zhanli', 'ddpath', 'lib/item/dist/pages/index/index?scene=6139540551', NULL, '客服小程序跳转路径', '2025-07-20 01:16:54', '2025-12-11 06:29:07');
