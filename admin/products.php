@@ -135,6 +135,22 @@ if ($_POST) {
             exit;
         }
     }
+    
+    if ($action === 'update_sales_false') {
+        $id = intval($_POST['id'] ?? 0);
+        $sales_false = intval($_POST['sales_false'] ?? 0);
+        try {
+            $stmt = $pdo->prepare("UPDATE shop_products SET sales_false = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$sales_false, $id]);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => '虚假销量更新成功']);
+            exit;
+        } catch (Exception $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => '更新失败：' . $e->getMessage()]);
+            exit;
+        }
+    }
 }
 
 // 获取商品列表
@@ -192,6 +208,7 @@ try {
         SELECT p.*, c.name as category_name, 
                (SELECT image_url FROM shop_product_images WHERE product_id = p.id AND sort_order = 0 LIMIT 1) as main_image,
                p.cover_image,
+               (p.sales + COALESCE(p.sales_false, 0)) as total_sales,
                CASE p.product_type 
                    WHEN 1 THEN '普通商品' 
                    WHEN 2 THEN '卡密商品' 
@@ -456,6 +473,9 @@ try {
                                 <th>分类</th>
                                 <th>类型</th>
                                 <th>价格</th>
+                                <th>展示销量</th>
+                                <th>真实销量</th>
+                                <th>虚假销量</th>
                                 <th>排序权重</th>
                                 <th>状态</th>
                                 <th>描述</th>
@@ -500,6 +520,17 @@ try {
                                         <?php endif; ?>
                                     </td>
                                     <td>¥<?php echo number_format($product['price'], 2); ?></td>
+                                    <td><?php echo number_format($product['total_sales'] ?? ($product['sales'] ?? 0) + ($product['sales_false'] ?? 0)); ?></td>
+                                    <td><?php echo number_format($product['sales'] ?? 0); ?></td>
+                                    <td>
+                                        <input type="number" 
+                                               class="form-control form-control-sm sales-false-input" 
+                                               style="width: 80px; display: inline-block;"
+                                               value="<?php echo intval($product['sales_false'] ?? 0); ?>" 
+                                               data-id="<?php echo $product['id']; ?>"
+                                               min="0"
+                                               onchange="updateSalesFalse(<?php echo $product['id']; ?>, this.value)">
+                                    </td>
                                     <td>
                                         <input type="number" 
                                                class="form-control form-control-sm sort-order-input" 
@@ -1092,6 +1123,48 @@ try {
             })
             .catch(error => {
                 console.error('更新排序权重失败:', error);
+                alert('更新失败，请重试');
+            });
+        }
+        
+        function updateSalesFalse(id, salesFalse) {
+            const formData = new FormData();
+            formData.append('action', 'update_sales_false');
+            formData.append('id', id);
+            formData.append('sales_false', salesFalse);
+            
+            fetch('products.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 显示成功提示
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+                    alertDiv.style.zIndex = '9999';
+                    alertDiv.innerHTML = `
+                        <i class="bi bi-check-circle me-2"></i>${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    document.body.appendChild(alertDiv);
+                    
+                    // 3秒后自动移除
+                    setTimeout(() => {
+                        alertDiv.remove();
+                    }, 3000);
+                    
+                    // 刷新页面以更新总销量
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
+                } else {
+                    alert('更新失败：' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('更新虚假销量失败:', error);
                 alert('更新失败，请重试');
             });
         }

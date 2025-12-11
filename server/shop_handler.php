@@ -123,7 +123,8 @@ function handleGetProducts($pdo, $params = []) {
         $sql = "
             SELECT 
                 p.id, p.category_id, p.product_type, p.title, p.description, p.price,
-                p.cover_image, p.sales, p.sort_order, p.status, p.created_at,
+                p.cover_image, p.sales, p.sales_false, p.sort_order, p.status, p.created_at,
+                (p.sales + COALESCE(p.sales_false, 0)) as total_sales,
                 c.name as category_name
             FROM shop_products p
             LEFT JOIN shop_categories c ON p.category_id = c.id
@@ -142,7 +143,8 @@ function handleGetProducts($pdo, $params = []) {
             $product['category_id'] = (int)$product['category_id'];
             $product['product_type'] = (int)$product['product_type'];
             $product['price'] = (float)$product['price'];
-            $product['sales'] = (int)$product['sales'];
+            // 销量 = sales + sales_false
+            $product['sales'] = (int)($product['total_sales'] ?? ($product['sales'] + ($product['sales_false'] ?? 0)));
             $product['sort_order'] = (int)$product['sort_order'];
             $product['status'] = (int)$product['status'];
         }
@@ -182,7 +184,9 @@ function handleGetProductDetail($pdo, $productId) {
     try {
         $stmt = $pdo->prepare("
             SELECT 
-                p.*, c.name as category_name
+                p.*, 
+                (p.sales + COALESCE(p.sales_false, 0)) as total_sales,
+                c.name as category_name
             FROM shop_products p
             LEFT JOIN shop_categories c ON p.category_id = c.id
             WHERE p.id = ? AND p.status = 1
@@ -203,7 +207,8 @@ function handleGetProductDetail($pdo, $productId) {
         $product['category_id'] = (int)$product['category_id'];
         $product['product_type'] = (int)$product['product_type'];
         $product['price'] = (float)$product['price'];
-        $product['sales'] = (int)$product['sales'];
+        // 销量 = sales + sales_false
+        $product['sales'] = (int)($product['total_sales'] ?? ($product['sales'] + ($product['sales_false'] ?? 0)));
         $product['sort_order'] = (int)$product['sort_order'];
         $product['status'] = (int)$product['status'];
         
